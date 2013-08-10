@@ -1,7 +1,7 @@
 #ifndef COVARIANCE_FUNCTION_SQUARED_EXPONENTIAL_ISO_HPP
 #define COVARIANCE_FUNCTION_SQUARED_EXPONENTIAL_ISO_HPP
 
-#include "CovSEisoBase.hpp"
+#include "GP/Cov/CovSEisoBase.hpp"
 
 namespace GP{
 

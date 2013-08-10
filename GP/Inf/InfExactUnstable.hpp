@@ -1,7 +1,7 @@
 #ifndef INF_EXACT_UNSTABLE_HPP
 #define INF_EXACT_UNSTABLE_HPP
 
-#include "DataTypes.hpp"
+#include "GP/DataTypes.hpp"
 
 namespace GP{
 

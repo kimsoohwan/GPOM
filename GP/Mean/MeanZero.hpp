@@ -1,7 +1,7 @@
 #ifndef MEAN_FUNCTION_ZERO_HPP
 #define MEAN_FUNCTION_ZERO_HPP
 
-#include "DataTypes.hpp"
+#include "GP/DataTypes.hpp"
 
 namespace GP{
 

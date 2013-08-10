@@ -3,7 +3,7 @@
 
 #include <assert.h>
 
-#include "DataTypes.hpp"
+#include "GP/DataTypes.hpp"
 
 namespace GP{
 	// self

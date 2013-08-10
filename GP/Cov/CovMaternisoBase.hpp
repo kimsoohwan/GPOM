@@ -3,8 +3,8 @@
 
 #include <vector>
 
-#include "DataTypes.hpp"
-#include "sqDistances.hpp"
+#include "GP/DataTypes.hpp"
+#include "GP/util/sqDistances.hpp"
 
 namespace GP{
 

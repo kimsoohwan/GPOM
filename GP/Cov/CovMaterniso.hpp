@@ -1,7 +1,7 @@
 #ifndef COVARIANCE_FUNCTION_MATERN_ISO_HPP
 #define COVARIANCE_FUNCTION_MATERN_ISO_HPP
 
-#include "CovMaternisoBase.hpp"
+#include "GP/Cov/CovMaternisoBase.hpp"
 
 namespace GP{
 

@@ -5,17 +5,17 @@
 #include <iostream>
 #include <cmath>
 
-#include "DataTypes.hpp"
-#include "sqDistances.hpp"
-#include "MeanZero.hpp"
-#include "CovSEiso.hpp"
-#include "CovMaterniso.hpp"
-#include "CovSEisoFDI.hpp"
-#include "CovMaternisoFDI.hpp"
-#include "LikGauss.hpp"
-#include "InfExact.hpp"
+#include "GP/DataTypes.hpp"
+#include "GP/util/sqDistances.hpp"
+#include "GP/Mean/MeanZero.hpp"
+#include "GP/Cov/CovSEiso.hpp"
+#include "GP/Cov/CovMaterniso.hpp"
+#include "GP/Cov/CovSEisoFDI.hpp"
+#include "GP/Cov/CovMaternisoFDI.hpp"
+#include "GP/Lik/LikGauss.hpp"
+#include "GP/Inf/InfExact.hpp"
 //#include "InfExactUnstable.hpp"
-#include "GP.hpp"
+#include "GP/GP.hpp"
 
 using namespace GP;
 

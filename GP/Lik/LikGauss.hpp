@@ -3,7 +3,7 @@
 
 #include <cmath>
 
-#include "DataTypes.hpp"
+#include "GP/DataTypes.hpp"
 
 namespace GP{
 

@@ -2,7 +2,7 @@
 #define INF_EXACT_HPP
 
 #include <Eigen/Cholesky> // for LLT
-#include "DataTypes.hpp"
+#include "GP/DataTypes.hpp"
 
 namespace GP{
 
