@@ -6,7 +6,7 @@
 #include "GP/DataTypes.hpp"
 #include "GP/util/sqDistances.hpp"
 
-namespace GP{
+namespace GPOM{
 
 class CovMaternisoBase
 {

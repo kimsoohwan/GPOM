@@ -6,7 +6,7 @@
 #include <Eigen/Core>
 //#include <Eigen/Sparse>
 
-namespace GP{
+namespace GPOM{
 	// Scalar
 	//typedef	float																									Scalar;
 	typedef	double																								Scalar;

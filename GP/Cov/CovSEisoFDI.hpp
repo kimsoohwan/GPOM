@@ -3,7 +3,7 @@
 
 #include "GP/Cov/CovSEiso.hpp"
 
-namespace GP{
+namespace GPOM{
 
 class CovSEisoFDI : public CovSEiso
 {

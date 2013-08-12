@@ -3,7 +3,7 @@
 
 #include "GP/Cov/CovMaterniso.hpp"
 
-namespace GP{
+namespace GPOM{
 
 class CovMaterniso3FDI : public CovMaterniso3
 {

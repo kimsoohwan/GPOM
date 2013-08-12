@@ -4,7 +4,7 @@
 #include "DataTypes.hpp"
 #include "Trainer.hpp"
 
-namespace GP{
+namespace GPOM{
 
 template <class MeanFunc, class CovFunc, class LikFunc, 
 				  template <class, class, class> class InfMethod>

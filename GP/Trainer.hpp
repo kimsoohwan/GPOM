@@ -6,7 +6,7 @@
 
 #include "DataTypes.hpp"
 
-namespace GP{
+namespace GPOM{
 
 // Gaussian Process
 template <class MeanFunc, class CovFunc, class LikFunc, 

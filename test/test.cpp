@@ -1,4 +1,4 @@
-#if 1
+#if 0
 #define BOOST_TEST_MODULE Simple testcases
 #include <boost/test/unit_test.hpp>
 
@@ -17,7 +17,9 @@
 //#include "InfExactUnstable.hpp"
 #include "GP/GP.hpp"
 
-using namespace GP;
+#include "GPOM.hpp"
+
+using namespace GPOM;
 
 // epsilon
 //Scalar epsilon = 1E-6f;
@@ -61,6 +63,9 @@ GPCovSEiso::LikHypPtr			pLikLogHyp;
 Scalar nlZ;
 VectorPtr pDnlZ;
 
+// GPOM
+typedef GaussianProcess<MeanZero, CovMaterniso3FDI, LikGauss, InfExact>		GPOMType;
+GPOMType gpom;
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 BOOST_AUTO_TEST_SUITE(suite_covariance)
@@ -745,70 +750,56 @@ BOOST_AUTO_TEST_CASE(CovMaterniso3FDI) {
 BOOST_AUTO_TEST_SUITE_END()
 
 #else
-#include <math.h>
+
 #include <iostream>
-using namespace std;
+#include <string>
 
-#include <Eigen/Dense>
-using namespace Eigen;
+#include <pcl/io/pcd_io.h>
+#include <pcl/features/normal_3d.h>
+#include <pcl/surface/mls.h>
 
-#include "myTypes.hpp"
-#include "sqDistances.hpp"
-#include "covSEiso.hpp"
-using namespace GP;
+#include "GP/Mean/MeanZero.hpp"
+#include "GP/Cov/CovMaternisoFDI.hpp"
+#include "GP/Lik/LikGauss.hpp"
+#include "GP/Inf/InfExact.hpp"
+//#include "InfExactUnstable.hpp"
+
+#include "util/surfaceNormals.hpp"
+#include "GPOM.hpp"
+using namespace GPOM;
+
+typedef GaussianProcessOccupancyMap<MeanZero, CovMaterniso3FDI, LikGauss, InfExact> GPOMType;
 
 int main()
 {
-	MatrixXr m1(3, 2);
-	m1 << 1, 2, 3, 4, 5, 6;
-	cout << "m1 = " << endl <<  m1 << endl;
+	// Point Clouds
+	pcl::PointCloud<pcl::PointXYZ>::Ptr pPoints (new pcl::PointCloud<pcl::PointXYZ>);
 
-	MatrixXr m2(4, 2);
-	m2 << 3, 4, 5, 6, 7, 8, 9, 10;
-	cout << "m2 = " << endl << m2 << endl;
+	// Load data from a PCD file
+	std::string filenName("input.pcd");
+	//std::string filenName("../../../PCL/PCL-1.5.1-Source/test/bunny.pcd");
+	if (pcl::io::loadPCDFile<pcl::PointXYZ>(filenName, *pPoints) == -1)
+	{
+		PCL_ERROR("Couldn't read file!\n");
+		return -1;
+	}
+	else
+	{
+		std::cout << pPoints->size() << " points are successfully loaded." << std::endl;
+	}
+
+	// surface normals
+	//pcl::PointCloud<pcl::PointNormal>::Ptr pPointNormals;
+	//smoothAndNormalEstimation(pPoints, pPointNormals);
+	const float searchRadius = 0.03f;
+	pcl::PointCloud<pcl::Normal>::Ptr pNormals = estimateSurfaceNormals(pPoints, searchRadius);
 
 
-	// pairwise squared distances
-	// self
-	MatrixXr sqD1(m1.rows(), m1.rows());
-	sqDistances(m1, sqD1);
-	cout << "sqD1 = " << endl << sqD1 << endl;
-
-	// cross
-	MatrixXr sqD2(m1.rows(), m2.rows());
-	sqDistances(m1, m2, sqD2);
-	cout << "sqD2 = " << endl << sqD2 << endl;
-
-	// hyp
-	VectorXr logHyp(2);
-	logHyp(0) = log(1.f);
-	logHyp(1) = log(2.f);
-
-	// covSEiso
-	// self
-	MatrixXr K1(m1.rows(), m1.rows());
-	covSEiso(sqD1, logHyp, K1);
-	cout << "K_xx" << endl;
-	cout << "K1 = " << endl << K1 << endl;
-
-	covSEiso(sqD1, logHyp, K1, false, 0);
-	cout << "partial K_xx / partial log ell" << endl;
-	cout << "K1 = " << endl << K1 << endl;
-
-	covSEiso(sqD1, logHyp, K1, false, 1);
-	cout << "partial K_xx / partial log sigma_f" << endl;
-	cout << "K1 = " << endl << K1 << endl;
-
-	// cross
-	MatrixXr K2(m1.rows(), m2.rows());
-	covSEiso(sqD2, logHyp, K2);
-	cout << "K_sx" << endl;
-	cout << "K2 = " << endl << K2 << endl;
-
-	// diagonal
-	MatrixXr K3(m1.rows(), 1);
-	covSEiso(sqD2, logHyp, K3);
-	cout << "K_ss" << endl;
-	cout << "K3 = " << endl << K3 << endl;
+	// GPOM
+	const float mapResolution = 0.1f; // 10cm
+	const float octreeResolution = 0.02f; //10.f; 
+	GPOMType gpom;
+	gpom.build(pPoints, pNormals, mapResolution);
+	//gpom.build(pPoints, pNormals, mapResolution, octreeResolution);
 }
 #endif

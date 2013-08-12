@@ -5,7 +5,7 @@
 
 #include "GP/DataTypes.hpp"
 
-namespace GP{
+namespace GPOM{
 	// self
 	MatrixPtr selfSqDistances(MatrixConstPtr pX)
 	{

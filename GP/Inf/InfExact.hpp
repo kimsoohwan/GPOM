@@ -4,7 +4,7 @@
 #include <Eigen/Cholesky> // for LLT
 #include "GP/DataTypes.hpp"
 
-namespace GP{
+namespace GPOM{
 
 template<class MeanFunc, class CovFunc, class LikFunc>
 class InfExact

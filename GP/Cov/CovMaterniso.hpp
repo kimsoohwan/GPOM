@@ -3,7 +3,7 @@
 
 #include "GP/Cov/CovMaternisoBase.hpp"
 
-namespace GP{
+namespace GPOM{
 
 class CovMaterniso3 : public CovMaternisoBase
 {

@@ -3,7 +3,7 @@
 
 #include "GP/DataTypes.hpp"
 
-namespace GP{
+namespace GPOM{
 
 	class MeanZero
 	{
