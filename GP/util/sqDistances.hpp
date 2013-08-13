@@ -12,7 +12,7 @@ namespace GPOM{
 		// pX: nxd
 
 		// number of training data
-		const int n = pX->rows();
+		const int n  = PointMatrixDirection::fRowWisePointsMatrix ? pX->rows()   : pX->cols();
 
 		// squared distances: nxn
 		MatrixPtr pSqDist(new Matrix(n, n));
@@ -28,13 +28,17 @@ namespace GPOM{
 #endif
 
 		// upper triangle
-		for(int row = 0; row < n; row++)
+		if(PointMatrixDirection::fRowWisePointsMatrix)	
 		{
-			for(int col = row + 1; col < n; col++)
-			{
-				(*pSqDist)(row, col) = (pX->row(row) - pX->row(col)).array().square().sum();
-				//(*pSqDist)(row, col) = (pX->row(row) - pX->row(col)).squaredNorm();
-			}
+			for(int row = 0; row < n; row++)
+				for(int col = row + 1; col < n; col++)
+					(*pSqDist)(row, col) = (pX->row(row) - pX->row(col)).array().square().sum();			//(*pSqDist)(row, col) = (pX->row(row) - pX->row(col)).squaredNorm();
+		}
+		else
+		{
+			for(int row = 0; row < n; row++)
+				for(int col = row + 1; col < n; col++)
+					(*pSqDist)(row, col) = (pX->col(row) - pX->col(col)).array().square().sum();
 		}
 
 		// lower triangle
@@ -56,25 +60,30 @@ namespace GPOM{
 	// cross
 	MatrixPtr crossSqDistances(MatrixConstPtr pX, MatrixConstPtr pXs)
 	{
+		// check if the dimensions are same
+		assert(PointMatrixDirection::fRowWisePointsMatrix ? pX->cols()  == pXs->cols() : pX->rows() == pXs->rows());
+
 		// X: nxd
 		// Xs: mxd
-		const int n	= pX->rows();
-		const int m	= pXs->rows();
-
-		// check if the dimensions are same
-		assert(pX->cols() == pXs->cols());
+		// number of data
+		const int n  = PointMatrixDirection::fRowWisePointsMatrix ? pX->rows()   : pX->cols();
+		const int m = PointMatrixDirection::fRowWisePointsMatrix ? pXs->rows() : pXs->cols();
 
 		// squared distances: nxn
 		MatrixPtr pSqDist(new Matrix(n, m));
 
 		// dense
-		for(int row = 0; row < n; row++)
+		if(PointMatrixDirection::fRowWisePointsMatrix)	
 		{
-			for(int col = 0; col < m; col++)
-			{
-				(*pSqDist)(row, col) = (pX->row(row) - pXs->row(col)).array().square().sum();
-				//(*pSqDist)(row, col) = (pX->row(row) - pX->row(col)).squaredNorm();
-			}
+			for(int row = 0; row < n; row++)
+				for(int col = 0; col < m; col++)
+					(*pSqDist)(row, col) = (pX->row(row) - pXs->row(col)).array().square().sum();
+		}
+		else
+		{
+			for(int row = 0; row < n; row++)
+				for(int col = 0; col < m; col++)
+					(*pSqDist)(row, col) = (pX->col(row) - pXs->col(col)).array().square().sum();
 		}
 
 		return pSqDist;
@@ -90,10 +99,10 @@ namespace GPOM{
 		// [output]
 		// x_i - x_i'
 
-		assert(i < pX->cols());
+		assert(PointMatrixDirection::fRowWisePointsMatrix ? i < pX->cols() : i < pX->rows());
 
 		// number of training data
-		const int n = pX->rows();
+		const int n  = PointMatrixDirection::fRowWisePointsMatrix ? pX->rows()   : pX->cols();
 
 		// squared distances: nxn
 		MatrixPtr pDelta(new Matrix(n, n));
@@ -102,9 +111,18 @@ namespace GPOM{
 		(*pDelta).setZero();
 
 		// upper triangle
-		for(int row = 0; row < n; row++)
-			for(int col = row + 1; col < n; col++)
-				(*pDelta)(row, col) = (*pX)(row, i) - (*pX)(col, i);
+		if(PointMatrixDirection::fRowWisePointsMatrix)	
+		{
+			for(int row = 0; row < n; row++)
+				for(int col = row + 1; col < n; col++)
+					(*pDelta)(row, col) = (*pX)(row, i) - (*pX)(col, i);
+		}
+		else
+		{
+			for(int row = 0; row < n; row++)
+				for(int col = row + 1; col < n; col++)
+					(*pDelta)(row, col) = (*pX)(i, row) - (*pX)(i, col);
+		}
 
 		// lower triangle (CAUTION: not symmetric but skew symmetric)
 		pDelta->triangularView<Eigen::StrictlyLower>() = (((Scalar) -1.f) * (*pDelta)).transpose().eval().triangularView<Eigen::StrictlyLower>();
@@ -124,20 +142,31 @@ namespace GPOM{
 		// x_i - x_i'
 
 		// check if the dimensions are same
-		assert(pX->cols() == pXs->cols());
-		assert(i < pX->cols());
+		assert(PointMatrixDirection::fRowWisePointsMatrix ? pX->cols()  == pXs->cols() : pX->rows() == pXs->rows());
+		assert(PointMatrixDirection::fRowWisePointsMatrix ? i < pX->cols() : i < pX->rows());
 
+		// X: nxd
+		// Xs: mxd
 		// number of data
-		const int n	= pX->rows();
-		const int m	= pXs->rows();
+		const int n  = PointMatrixDirection::fRowWisePointsMatrix ? pX->rows()   : pX->cols();
+		const int m = PointMatrixDirection::fRowWisePointsMatrix ? pXs->rows() : pXs->cols();
 
 		// squared distances: nxn
 		MatrixPtr pDelta(new Matrix(n, m));
 
 		// dense
-		for(int row = 0; row < n; row++)
-			for(int col = 0; col < m; col++)
-				(*pDelta)(row, col) = (*pX)(row, i) - (*pXs)(col, i);
+		if(PointMatrixDirection::fRowWisePointsMatrix)	
+		{
+			for(int row = 0; row < n; row++)
+				for(int col = 0; col < m; col++)
+					(*pDelta)(row, col) = (*pX)(row, i) - (*pXs)(col, i);
+		}
+		else
+		{
+			for(int row = 0; row < n; row++)
+				for(int col = 0; col < m; col++)
+					(*pDelta)(row, col) = (*pX)(i, row) - (*pXs)(i, col);
+		}
 
 		return pDelta;
 	}

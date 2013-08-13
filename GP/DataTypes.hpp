@@ -7,6 +7,11 @@
 //#include <Eigen/Sparse>
 
 namespace GPOM{
+	class PointMatrixDirection{
+	public:
+		static const bool fRowWisePointsMatrix = false;
+	};
+
 	// Scalar
 	//typedef	float																									Scalar;
 	typedef	double																								Scalar;

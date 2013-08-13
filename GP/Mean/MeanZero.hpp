@@ -23,7 +23,10 @@ namespace GPOM{
 		// mean and derivatives
 		VectorPtr operator()(MatrixConstPtr pX, HypConstPtr pLogHyp, const int pdIndex = -1) const
 		{
-			VectorPtr mu(new Vector(pX->rows()));
+			// number of training data
+			const int n  = PointMatrixDirection::fRowWisePointsMatrix ? pX->rows()   : pX->cols();
+
+			VectorPtr mu(new Vector(n));
 			mu->setZero();
 			return mu;
 		}

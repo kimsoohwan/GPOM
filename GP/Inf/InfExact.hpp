@@ -41,8 +41,8 @@ public:
 						 bool										fVarianceVector = true)
 	{
 		// number of data
-		const int n = pX->rows();
-		const int m = pXs->rows();
+		const int n  = PointMatrixDirection::fRowWisePointsMatrix ? pX->rows()   : pX->cols();
+		const int m = PointMatrixDirection::fRowWisePointsMatrix ? pXs->rows() : pXs->cols();
 
 		// calculate L and alpha
 		// Kn = K + D
@@ -105,11 +105,11 @@ public:
 		// [+]: calculate nlZ only
 		// [-]: calculate pDnlZ only
 
+		// number of training data
+		const int n  = PointMatrixDirection::fRowWisePointsMatrix ? pX->rows()   : pX->cols();
+
 		// partial derivatives w.r.t hyperparameters
 		pDnlZ.reset(new Vector(pMeanLogHyp->size() + pCovLogHyp->size() + pLikCovLogHyp->size()));
-
-		// number of training data
-		int n = pX->rows();
 
 		// calculate L and alpha
 		// Kn = K + D
@@ -215,7 +215,7 @@ protected:
 												VectorPtr							&pAlpha)					// [output] alpha = inv(Kn) * (y-m)
 	{
 		// number of training data
-		const int n = pX->rows();
+		const int n  = PointMatrixDirection::fRowWisePointsMatrix ? pX->rows()   : pX->cols();
 
 		// memory allocation
 		pL.reset(new CholeskyFactor());			// nxn

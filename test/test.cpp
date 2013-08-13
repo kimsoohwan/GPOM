@@ -1,4 +1,4 @@
-#if 0
+#if 1
 #define BOOST_TEST_MODULE Simple testcases
 #include <boost/test/unit_test.hpp>
 
@@ -20,6 +20,7 @@
 #include "GPOM.hpp"
 
 using namespace GPOM;
+
 
 // epsilon
 //Scalar epsilon = 1E-6f;
@@ -78,8 +79,17 @@ BOOST_AUTO_TEST_CASE(self_squared_distance) {
 		        8,     9,     6,
 				2,     3,     4,
 				8,     1 ,    3;
-	pX.reset(new Matrix (n, d));
-	(*pX) = X;
+	if(PointMatrixDirection::fRowWisePointsMatrix)
+	{
+		pX.reset(new Matrix (n, d));
+		(*pX) = X;
+	}
+	else
+	{
+		X.transposeInPlace();
+		pX.reset(new Matrix (d, n));
+		(*pX) = X;
+	}
 
 	// sqDist = (X - X)^2
 	Matrix sqDist_(n, n);
@@ -105,8 +115,19 @@ BOOST_AUTO_TEST_CASE(cross_squared_distance) {
 			   2,     5,     3,
 			   7,     7,     1,
 			   7,     9,     7;
-	pXs.reset(new Matrix (m, d));
-	(*pXs) = Xs;
+
+	if(PointMatrixDirection::fRowWisePointsMatrix)
+	{
+		pXs.reset(new Matrix (m, d));
+		(*pXs) = Xs;
+	}
+	else
+	{
+		Xs.transposeInPlace();
+		pXs.reset(new Matrix (d, m));
+		(*pXs) = Xs;
+	}
+
 
 	// sqDists = (X - Xs)^2
 	Matrix sqDist_(n, m);
@@ -117,6 +138,8 @@ BOOST_AUTO_TEST_CASE(cross_squared_distance) {
 
 	// square distances
 	MatrixPtr pSqDist = crossSqDistances(pX, pXs);
+
+	// check
     BOOST_CHECK_EQUAL(sqDist_, (*pSqDist));
 }
 
@@ -343,7 +366,8 @@ BOOST_AUTO_TEST_CASE(covSEiso_predict) {
 	(*pLikLogHyp)(0)	= log(0.3f);
 
 	// Y
-	pY.reset(new Vector(pX->rows()));
+	if(PointMatrixDirection::fRowWisePointsMatrix)	pY.reset(new Vector(pX->rows()));
+	else																				pY.reset(new Vector(pX->cols()));
 	(*pY) << 1, 4, 3, 7;
 
 	// predict 
@@ -393,7 +417,8 @@ BOOST_AUTO_TEST_CASE(covMaterniso3_predict) {
 	(*pLikLogHyp)(0)	= log(0.3f);
 
 	// Y
-	pY.reset(new Vector(pX->rows()));
+	if(PointMatrixDirection::fRowWisePointsMatrix)	pY.reset(new Vector(pX->rows()));
+	else																				pY.reset(new Vector(pX->cols()));
 	(*pY) << 1, 4, 3, 7;
 
 	// predict 

@@ -39,6 +39,10 @@ public:
 						 MatrixPtr								&pSigma, 
 						 bool										fVarianceVector = true)
 	{
+		// number of data
+		const int n  = PointMatrixDirection::fRowWisePointsMatrix ? pX->rows()   : pX->cols();
+		const int m = PointMatrixDirection::fRowWisePointsMatrix ? pXs->rows() : pXs->cols();
+
 		// calculate L and alpha
 		// Kn = K + D = LL' 
 		// alpha = inv(K + sn2*I)*(y-m)
@@ -54,7 +58,7 @@ public:
 		// predictive mean
 		// mu = ms + Ks' * inv(Kn) * (y-m)
 		//       = ms + Ks' * alpha
-		pMu.reset(new Vector(pXs->rows()));
+		pMu.reset(new Vector(m));
 		pMu->noalias() = *(m_MeanFunc(pXs, pMeanLogHyp)) + (pKs->transpose()) * (*pAlpha);
 
 		// predictive variance
@@ -66,19 +70,19 @@ public:
 
 		// V = inv(L) * Ks 
 		//        (nxn) * (nxm)
-		Matrix V(pX->rows(), pXs->rows()); // nxm
+		Matrix V(n, m); // nxm
 		V = pL->matrixL().solve(*pKs);
 
 		if(fVarianceVector)
 		{
 			// sigma2 = kss - v' * v
-			pSigma.reset(new Matrix(pX->rows(), 1));					// variance vector
+			pSigma.reset(new Matrix(m, 1));					// variance vector
 			(*pSigma).noalias() = (*pKss) - V.transpose().array().square().matrix().rowwise().sum();
 		}
 		else
 		{
 			// Sigma = Kss - V' *V
-			pSigma.reset(new Matrix(pX->rows(), pX->rows())); // covariance matrix
+			pSigma.reset(new Matrix(m, m)); // covariance matrix
 			(*pSigma).noalias() = (*pKss) - V.transpose() * V;
 		}
 	}
@@ -97,11 +101,11 @@ public:
 		// [+]: calculate nlZ only
 		// [-]: calculate pDnlZ only
 
+		// number of training data
+		const int n  = PointMatrixDirection::fRowWisePointsMatrix ? pX->rows()   : pX->cols();
+
 		// partial derivatives w.r.t hyperparameters
 		pDnlZ.reset(new Vector(pMeanLogHyp->size() + pCovLogHyp->size() + pLikCovLogHyp->size()));
-
-		// number of training data
-		int n = pX->rows();
 
 		// calculate L and alpha
 		// Kn = K + D = LL' 
@@ -190,10 +194,13 @@ protected:
 												VectorPtr							&pY_M,						// [output] y-m
 												VectorPtr							&pAlpha)					// [output] alpha = inv(Kn) * (y-m)
 	{
+		// number of training data
+		const int n  = PointMatrixDirection::fRowWisePointsMatrix ? pX->rows()   : pX->cols();
+
 		// memory allocation
-		pL.reset(new CholeskyFactor());								// nxn
-		pY_M.reset(new Vector(pX->rows()));					// nx1
-		pAlpha.reset(new Vector(pX->rows()));					// nx1
+		pL.reset(new CholeskyFactor());			// nxn
+		pY_M.reset(new Vector(n));					// nx1
+		pAlpha.reset(new Vector(n));				// nx1
 
 		// K 
 		MatrixPtr pKn = m_CovFunc(pX, pCovLogHyp); // [CAUTION] K: upper triangular matrix

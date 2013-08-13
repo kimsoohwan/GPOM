@@ -32,11 +32,14 @@ protected:
 			// output
 			// K: nxn matrix
 
+			// dimension
+			const int d = PointMatrixDirection::fRowWisePointsMatrix ? pX->cols() : pX->rows();
+
 			// pre-calculate the squared distances and delta
 			preCalculateSqDistAndDelta(pX);
 
 			// calculate the covariance matrix
-			return K(m_pSqDist, m_pDelta, pX->cols(), pLogHyp, pdIndex);
+			return K(m_pSqDist, m_pDelta, d, pLogHyp, pdIndex);
 		}
 
 		// cross covariance
@@ -50,11 +53,13 @@ protected:
 			// output
 			// K: nxm matrix
 
+			// dimension
+			const int d = PointMatrixDirection::fRowWisePointsMatrix ? pX->cols() : pX->rows();
+
 			// calculate the squared distances
 			MatrixPtr pSqDist = crossSqDistances(pX, pXs);
 
 			// calculate the delta
-			const int d = pX->cols();
 			DeltaList deltaList(d);
 			for(int i = 0; i < d; i++) deltaList[i] = crossDelta(pX, pXs, i);
 

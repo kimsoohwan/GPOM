@@ -71,6 +71,9 @@ class CovMaterniso3 : public CovMaternisoBase
 			// logHyp: log hyperparameters
 			// fVarianceVector: [true] self-variance vector (mx1), [false] self-covariance matrix (mxm)
 
+			// number of test data
+			const int m = PointMatrixDirection::fRowWisePointsMatrix ? pXs->rows() : pXs->cols();
+
 			// hyperparameters
 			Scalar sigma_f2 = exp(((Scalar) 2.f) * (*pLogHyp)(1));
 
@@ -81,7 +84,7 @@ class CovMaterniso3 : public CovMaternisoBase
 			if(fVarianceVector)
 			{
 				// K: self-variance vector (mx1)
-				pK.reset(new Matrix(pXs->rows(), 1));
+				pK.reset(new Matrix(m, 1));
 				pK->fill(sigma_f2);
 			}
 			else					

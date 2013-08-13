@@ -37,6 +37,9 @@ class CovSEisoBase
 		// pre-calculate the delta
 		bool preCalculateSqDistAndDelta(MatrixConstPtr pX)
 		{
+			// dimension
+			const int d = PointMatrixDirection::fRowWisePointsMatrix ? pX->cols() : pX->rows();
+
 			// pre-calculate the squared distances
 			preCalculateSqDist(pX);
 
@@ -45,7 +48,6 @@ class CovSEisoBase
 			m_pTrainingInputsForDelta = pX;
 
 			// pre-calculate the delta
-			const int d = pX->cols(); // dimension
 			m_pDelta.resize(d);
 			for(int i = 0; i < d; i++) m_pDelta[i] = selfDelta(pX, i);
 			

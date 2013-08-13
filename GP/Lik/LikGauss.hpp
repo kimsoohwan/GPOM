@@ -29,7 +29,10 @@ namespace GPOM{
 		// diagonal vector
 		VectorPtr operator()(MatrixConstPtr pX, HypConstPtr pLogHyp, const int pdIndex = -1) const
 		{
-			VectorPtr pD(new Vector(pX->rows()));
+			// number of training data
+			const int n  = PointMatrixDirection::fRowWisePointsMatrix ? pX->rows()   : pX->cols();
+			
+			VectorPtr pD(new Vector(n));
 			if(pdIndex == -1)			pD->fill(exp((Scalar) 2.f * (*pLogHyp)(0)));
 			else									pD->fill(((Scalar) 2.f) * exp((Scalar) 2.f * (*pLogHyp)(0)));
 			return pD;
@@ -38,7 +41,10 @@ namespace GPOM{
 		//// diagonal matrix
 		//MatrixPtr operator()(MatrixConstPtr pX, HypConstPtr pLogHyp, const int pdIndex = -1) const
 		//{
-		//	MatrixPtr pD(new Matrix(pX->rows(), pX->rows()));
+		//	// number of training data
+		//	const int n  = PointMatrixDirection::fRowWisePointsMatrix ? pX->rows()   : pX->cols();
+
+		//	MatrixPtr pD(new Matrix(n, n));
 		//	pD->setZero();
 		//	if(pdIndex == -1)		pD->diagonal().fill(exp((Scalar) 2.f * (*pLogHyp)(0)));
 		//	else								pD->diagonal().fill(((Scalar) 2.f) * exp((Scalar) 2.f * (*pLogHyp)(0)));
