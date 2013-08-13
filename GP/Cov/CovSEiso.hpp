@@ -1,11 +1,11 @@
 #ifndef COVARIANCE_FUNCTION_SQUARED_EXPONENTIAL_ISO_HPP
 #define COVARIANCE_FUNCTION_SQUARED_EXPONENTIAL_ISO_HPP
 
-#include "GP/Cov/CovSEisoBase.hpp"
+#include "GP/DataTypes.hpp"
 
 namespace GPOM{
 
-class CovSEiso : public CovSEisoBase
+class CovSEiso
 {
 	public:
 		// hyperparameters
@@ -77,14 +77,14 @@ class CovSEiso : public CovSEisoBase
 			Scalar sigma_f2 = exp(((Scalar) 2.f) * (*pLogHyp)(1));
 
 			// output
-			MatrixPtr pK;
+			MatrixPtr pKss;
 
 			// k(X, X') = sigma_f^2
 			if(fVarianceVector)
 			{
 				// K: self-variance vector (mx1)
-				pK.reset(new Matrix(m, 1));
-				pK->fill(sigma_f2);
+				pKss.reset(new Matrix(m, 1));
+				pKss->fill(sigma_f2);
 			}
 			else					
 			{
@@ -94,10 +94,10 @@ class CovSEiso : public CovSEisoBase
 				MatrixPtr pSqDist = selfSqDistances(pXs);
 
 				// calculate the covariance matrix
-				pK = K_FF(pSqDist, pLogHyp);
+				pKss = K_FF(pSqDist, pLogHyp);
 			}
 
-			return pK;
+			return pKss;
 		}
 
 	protected:
@@ -160,6 +160,22 @@ class CovSEiso : public CovSEisoBase
 
 			return pK;
 		}
+
+		// pre-calculate the squared distances
+		bool preCalculateSqDist(MatrixConstPtr pX)
+		{
+			// check if the training inputs are the same
+			if(m_pTrainingInputs == pX) return false;
+			m_pTrainingInputs = pX;
+
+			// pre-calculate the squared distances
+			m_pSqDist = selfSqDistances(pX);
+			return true;
+		}
+
+	protected:
+		MatrixConstPtr						m_pTrainingInputs;			// training inputs
+		MatrixPtr									m_pSqDist;						// squared distances of the training inputs
 };
 
 }

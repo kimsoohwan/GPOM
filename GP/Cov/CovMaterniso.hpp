@@ -1,11 +1,11 @@
 #ifndef COVARIANCE_FUNCTION_MATERN_ISO_HPP
 #define COVARIANCE_FUNCTION_MATERN_ISO_HPP
 
-#include "GP/Cov/CovMaternisoBase.hpp"
+#include "GP/DataTypes.hpp"
 
 namespace GPOM{
 
-class CovMaterniso3 : public CovMaternisoBase
+class CovMaterniso3
 {
 	public:
 		// hyperparameters
@@ -78,14 +78,14 @@ class CovMaterniso3 : public CovMaternisoBase
 			Scalar sigma_f2 = exp(((Scalar) 2.f) * (*pLogHyp)(1));
 
 			// output
-			MatrixPtr pK;
+			MatrixPtr pKss;
 
 			// k(X, X') = sigma_f^2
 			if(fVarianceVector)
 			{
 				// K: self-variance vector (mx1)
-				pK.reset(new Matrix(m, 1));
-				pK->fill(sigma_f2);
+				pKss.reset(new Matrix(m, 1));
+				pKss->fill(sigma_f2);
 			}
 			else					
 			{
@@ -96,10 +96,10 @@ class CovMaterniso3 : public CovMaternisoBase
 				pDist->noalias() = pDist->cwiseSqrt();			// distances
 
 				// calculate the covariance matrix
-				pK = K_FF(pDist, pLogHyp);
+				pKss = K_FF(pDist, pLogHyp);
 			}
 
-			return pK;
+			return pKss;
 		}
 
 	protected:
@@ -154,7 +154,26 @@ class CovMaterniso3 : public CovMaternisoBase
 
 			return pK;
 		}
+
+		// pre-calculate the squared distances
+		bool preCalculateDist(MatrixConstPtr pX)
+		{
+			// check if the training inputs are the same
+			if(m_pTrainingInputs == pX) return false;
+			m_pTrainingInputs = pX;
+
+			// pre-calculate the distances
+			m_pDist = selfSqDistances(pX);						// squared distances
+			m_pDist->noalias() = m_pDist->cwiseSqrt();	// distances
+			return true;
+		}
+
+	protected:
+		// pre-calculated matrices for speed up in training
+		MatrixConstPtr						m_pTrainingInputs;				// training inputs
+		MatrixPtr									m_pDist;									// distances of the training inputs
 };
+
 }
 
 #endif

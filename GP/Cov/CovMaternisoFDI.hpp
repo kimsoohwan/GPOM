@@ -1,14 +1,19 @@
 #ifndef COVARIANCE_FUNCTION_MATERN_ISO_BETWEEN_FUNCTION_VALUE_DERIVATIVE_AND_INTEGRAL_HPP
 #define COVARIANCE_FUNCTION_MATERN_ISO_BETWEEN_FUNCTION_VALUE_DERIVATIVE_AND_INTEGRAL_HPP
 
-#include "GP/Cov/CovFDIBase.hpp"
+#include <vector>
+
 #include "GP/Cov/CovMaterniso.hpp"
 
 namespace GPOM{
 
-class CovMaterniso3FDI : public CovMaterniso3, public CovFDIBase
+class CovMaterniso3FDI : public CovMaterniso3
 {
-protected:
+	protected:
+		// type
+		typedef		std::vector<MatrixPtr>								MatrixPtrList;
+		typedef		std::vector< std::vector<MatrixPtr> >		MatrixPtrListList;
+
 	public:
 		// constructor
 		CovMaterniso3FDI() { }
@@ -31,42 +36,152 @@ protected:
 			// pdIndex: partial derivatives with respect to this parameter index
 
 			// output
-			// K: nxn matrix
+			// K: (n1*(d+1) + n2) x (n1*(d+1) + n2)
+			// 
+			// for example, when d = 3
+			//                    |   F (n1)   |  D1 (n1)  |  D2 (n1)  |  D3 (n1)  | F2 (n2) |
+			// K = -------------------------------------------------------------------------------
+			//        F1  (n1) |  F1F1,   F1D1,       F1D2,      F1D3,     |  F1F2
+			//        D1 (n1) |           -,   D1D1,      D1D2,      D1D3,    |  D1F2
+			//        D2 (n1) |           -,            -,      D2D2,      D2D3,    |  D2F2
+			//        D3 (n1) |           -,            -,               -,      D3D3,    |  D3F2
+			//       --------------------------------------------------------------------------------
+			//        F2  (n2) |           -,            -,               -,               -,    |  F2F2
+			//
+ 			//                          |    (n1)    |    (n2)   |
+			// sqDist = ----------------------------------
+			//                 (n1) |  n1 x n1,   n1 x n2
+			//                 (n2) |  n2 x n1,   n2 x n2
 
-			// dimension
-			const int d = PointMatrixDirection::fRowWisePointsMatrix ? pX->cols() : pX->rows();
+			assert(numRobotPoses > 0);
+
+			// numbers of training data and dimension
+			const int n	= PointMatrixDirection::fRowWisePointsMatrix ?		pX->rows()		: pX->cols();
+			const int d	= PointMatrixDirection::fRowWisePointsMatrix ?		pX->cols()		: pX->rows();
+			const int n1	= n - numRobotPoses;
+			const int n2	= numRobotPoses;
 
 			// pre-calculate the squared distances and delta
 			preCalculateDistAndDelta(pX);
 
-			// calculate the covariance matrix
-			return K(m_pDist, m_pDelta, d, pLogHyp, pdIndex);
+			// covariance matrix
+			MatrixPtr pK(new Matrix(n1*(d+1)+n2, n1*(d+1)+n2)); // n1(d+1)+n2 by n1(d+1)+n2
+
+			// fill block matrices of FF, FD and DD in order
+			for(int row = 0; row <= d; row++)
+			{
+				const int startingRow = n1*row;
+				for(int col = row; col <= d; col++)
+				{
+					const int startingCol = n1*col;
+
+					// calculate the upper triangle
+					if(row == 0)
+					{
+						// F1F1
+						if(col == 0)	pK->block(startingRow, startingCol, n1, n1) = *(K_FF(m_pDistList[0], pLogHyp, pdIndex));
+
+						// F1D*
+						else				pK->block(startingRow, startingCol, n1, n1) = *(K_FD(m_pDistList[0], m_pDeltaListList[0][col-1], pLogHyp, pdIndex));
+					}
+					else
+					{
+						// D*D*
+											pK->block(startingRow, startingCol, n1, n1) = *(K_DD(m_pDistList[0], 
+																																		 m_pDeltaListList[0][row-1],		row-1, 
+																																		 m_pDeltaListList[0][col-1],		col-1,
+																																		 pLogHyp, pdIndex));
+					}
+
+					// copy its transpose
+					if(row != col)	pK->block(startingCol, startingRow, n1, n1).noalias() = pK->block(startingRow, startingCol, n1, n1).transpose();
+				}
+
+				// F1F2
+				if(row == 0)		pK->block(startingRow, n1*(d+1), n1, n2) = *(K_FF(m_pDistList[1], pLogHyp, pdIndex));
+
+				// D*F2
+				else					pK->block(startingRow, n1*(d+1), n1, n2) = *(K_FD(m_pDistList[1], m_pDeltaListList[1][row-1], pLogHyp, pdIndex));
+
+				// copy its transpose
+				pK->block(n1*(d+1), startingRow, n2, n1).noalias() = pK->block(startingRow, n1*(d+1), n1, n2).transpose();
+			}
+
+			// F2F2
+			pK->block(n1*(d+1), n1*(d+1), n2, n2) = *(K_FF(m_pDistList[2], pLogHyp, pdIndex));
+
+			return pK;
 		}
 
 		// cross covariance
 		MatrixPtr Ks(MatrixConstPtr pX, MatrixConstPtr pXs, HypConstPtr pLogHyp) const
 		{
 			// input
-			// pX (nxd): training inputs
-			// pXx (mxd): test inputs
+			// pX ((n1+n2) x d): training inputs
+			// pXs (m x d): test inputs
 			// pLogHyp: log hyperparameters
 
 			// output
-			// K: nxm matrix
+			// K: (n1*(d+1) + n2) x m
 
-			// dimension
-			const int d = PointMatrixDirection::fRowWisePointsMatrix ? pX->cols() : pX->rows();
+			//                    |  F (m)  |
+			// K = ---------------------
+			//        F    (n1) |    F1F
+			//        D1 (n1) |    D1F
+			//        D2 (n1) |    D2F
+			//        D3 (n)1 |    D3F
+			//        F    (n2) |    F2F
+
+			//                            |    Xs(m)   | 
+			// sqDist = ----------------------
+			//                 Xf(n1)  |  n1 x m
+			//                 Xd(n2) |  n2 x m
+
+			assert(numRobotPoses > 0);
+
+			// numbers of training data and dimension
+			const int n	= PointMatrixDirection::fRowWisePointsMatrix ?		pX->rows()		: pX->cols();
+			const int m	= PointMatrixDirection::fRowWisePointsMatrix ?		pXs->rows()	: pXs->cols();
+			const int d	= PointMatrixDirection::fRowWisePointsMatrix ?		pX->cols()		: pX->rows();
+			const int n1	= n - numRobotPoses;
+			const int n2	= numRobotPoses;
+
+			// X
+			MatrixPtr pX1, pX2;
+			if(PointMatrixDirection::fRowWisePointsMatrix)
+			{
+				pX1.reset(new Matrix(pX->topRows(n1)));
+				pX2.reset(new Matrix(pX->bottomRows(n2)));
+			}
+			else
+			{
+				pX1.reset(new Matrix(pX->leftCols(n1)));
+				pX2.reset(new Matrix(pX->rightCols(n2)));
+			}
 
 			// calculate the distances
-			MatrixPtr pDist = crossSqDistances(pX, pXs);		// squared distances
-			pDist->noalias() = pDist->cwiseSqrt();					// distances
+			MatrixPtr pDist1	= crossSqDistances(pX1, pXs);		pDist1->noalias() = pDist1->cwiseSqrt();		// X1Xs
+			MatrixPtr pDist2	= crossSqDistances(pX2, pXs);		pDist2->noalias() = pDist2->cwiseSqrt();		// X2Xs
 
 			// calculate the delta
-			DeltaList deltaList(d);
-			for(int i = 0; i < d; i++) deltaList[i] = crossDelta(pX, pXs, i);
+			MatrixPtrList deltaList;
+			deltaList.resize(d);
+			for(int i = 0; i < d; i++) deltaList[i] = crossDelta(pX1, pXs, i);		// X1-Xs
 
-			// calculate the covariance matrix
-			return Ks(pDist, deltaList, d, pLogHyp);
+			// covariance matrix
+			MatrixPtr pKs(new Matrix(n1*(d+1)+n2, m)); //(n1*(d+1) + n2) x m
+
+			// F1F
+			pKs->block(0, 0, n1, m) = *(K_FF(pDist1, pLogHyp));
+
+			// D1F, D2F, D3F
+			for(int row = 1; row <= d; row++)
+				pKs->block(n1*row, 0, n1, m) = ((Scalar) -1.f) * (*(K_FD(pDist1, deltaList[row-1], pLogHyp)));
+
+			// F2F
+			pKs->block(n1*(d+1), 0, n2, m) = *(K_FF(pDist2, pLogHyp));
+
+			return pKs;
 		}
 
 		// self-variance/covariance
@@ -262,108 +377,70 @@ protected:
 			return pK_DD;
 		}
 
-		// covariance matrix given pair-wise sqaured distances and delta
-		MatrixPtr K(MatrixConstPtr pDist, ConstDeltaList &deltaList, const int d, HypConstPtr pLogHyp, const int pdIndex = -1) const
+		// pre-calculate the squared distances and deltas
+		bool preCalculateDistAndDelta(MatrixConstPtr pX)
 		{
-			// input
-			// pDist (nxn): squared distances
-			// deltaList: list of delta (nxn)
-			// d: dimension of training inputs
-			// pLogHyp: log hyperparameters
-			// pdIndex: partial derivatives with respect to this parameter index
+			//                              | X1(n1) | X2(n2) |
+			// dist = ---------------------------------------
+			//                 X1 (n1) |  X1X1,   X1X2
+			//                 X2 (n2) |           -,   X2X2
 
-			// output
-			// K: n(d+1) by n(d+1)
-			// 
-			// for example, when d = 3
-			//                    |   F (n)   |  D1 (n)  |  D2 (n)  |  D3 (n)  |
-			// K = ---------------------
-			//        F    (n) |    FF,          FD1,        FD2,       FD3 
-			//        D1 (n) |        -,       D1D1,     D1D2,     D1D3
-			//        D2 (n) |        -,                -,     D2D2,     D2D3
-			//        D3 (n) |        -,                -,              -,     D3D3
+			//                              | X1(n1) | X2(n2) |
+			// delta = -------------------------------------
+			//                 X1 (n1) |  X1X1,   X1X2
 
-			assert(pDist->rows() == pDist->cols());
-			//std::cout << "Dist  = " << std::endl << *pDist << std::endl << std::endl;
+			// check if the training inputs are the same
+			if(m_pTrainingInputs == pX) return false;
+			m_pTrainingInputs = pX;
 
-			const int n = pDist->rows();
+			// numbers of training data and dimension
+			const int n = PointMatrixDirection::fRowWisePointsMatrix ? pX->rows() : pX->cols();
+			const int d = PointMatrixDirection::fRowWisePointsMatrix ? pX->cols() : pX->rows();
+			const int n1 = n - numRobotPoses;
+			const int n2 = numRobotPoses;
 
-			// covariance matrix
-			MatrixPtr pK(new Matrix(n*(d+1), n*(d+1))); // n(d+1) by n(d+1)
+			assert(n2 > 0);
 
-			// fill block matrices of FF, FD and DD in order
-			for(int row = 0; row <= d; row++)
+			// X
+			MatrixPtr pX1, pX2;
+			if(PointMatrixDirection::fRowWisePointsMatrix)
 			{
-				const int startingRow = n*row;
-				for(int col = row; col <= d; col++)
-				{
-					const int startingCol = n*col;
-
-					// calculate the upper triangle
-					if(row == 0)
-					{
-						// F-F
-						if(col == 0)	pK->block(startingRow, startingCol, n, n) = *(K_FF(pDist, pLogHyp, pdIndex));
-
-						// F-D
-						else				pK->block(startingRow, startingCol, n, n) = *(K_FD(pDist, deltaList[col-1], pLogHyp, pdIndex));
-					}
-					else
-					{
-						// D-D
-											pK->block(startingRow, startingCol, n, n) = *(K_DD(pDist, 
-																																	 deltaList[row-1], row-1, deltaList[col-1], col-1,
-																																	 pLogHyp, pdIndex));
-					}
-
-					// copy its transpose
-					if(row != col)	pK->block(startingCol, startingRow, n, n).noalias() = pK->block(startingRow, startingCol, n, n).transpose();
-				}
+				pX1.reset(new Matrix(pX->topRows(n1)));
+				pX2.reset(new Matrix(pX->bottomRows(n2)));
+			}
+			else
+			{
+				pX1.reset(new Matrix(pX->leftCols(n1)));
+				pX2.reset(new Matrix(pX->rightCols(n2)));
 			}
 
-			return pK;
+			// pre-calculate squared distances and delta(upper triangle)
+			m_pDistList.resize(3);
+			m_pDeltaListList.resize(2);
+
+			// squared distances
+			m_pDistList[0] = selfSqDistances(pX1);						// X1X1
+			m_pDistList[1] = crossSqDistances(pX1, pX2);			// X1X2
+			m_pDistList[2] = selfSqDistances(pX2);						// X2X2
+			for(int i = 0; i < 3; i++)	m_pDistList[i]->noalias() = m_pDistList[i]->cwiseSqrt();
+
+			// delta
+			m_pDeltaListList[0].resize(d);		for(int i = 0; i < d; i++) m_pDeltaListList[0][i] = selfDelta(pX1, i);					// X1X1
+			m_pDeltaListList[1].resize(d);		for(int i = 0; i < d; i++) m_pDeltaListList[1][i] = crossDelta(pX1, pX2, i);	// X1X2
+			
+			return true;
 		}
 
-		// covariance matrix given pair-wise sqaured distances and delta
-		MatrixPtr Ks(MatrixConstPtr pDist, ConstDeltaList &deltaList, const int d, HypConstPtr pLogHyp) const
-		{
-			// input
-			// pDist (nxm): squared distances
-			// deltaList: list of delta (nxm)
-			// d: dimension of training inputs
-			// pLogHyp: log hyperparameters
-			// pdIndex: partial derivatives with respect to this parameter index
+	protected:
+		MatrixPtrList							m_pDistList;				// FF, FD, DD: distances
+		MatrixPtrListList					m_pDeltaListList;		// FF, FD, DD: x_i - x_i'
 
-			// output
-			// K: n(d+1) x m
-			// 
-			// for example, when d = 3
-			//                    |  F (m)  |
-			// K = ---------------------
-			//        F    (n) |       FF
-			//        D1 (n) |    D1F
-			//        D2 (n) |    D2F
-			//        D3 (n) |    D3F
-
-			const int n = pDist->rows();
-			const int m = pDist->cols();
-
-			// covariance matrix
-			MatrixPtr pK(new Matrix(n*(d+1), m)); // n(d+1) x m
-
-			// fill block matrices of FF, FD and DD in order
-			for(int row = 0; row <= d; row++)
-			{
-				// F-F
-				if(row == 0)		pK->block(n*row, 0, n, m) = *(K_FF(pDist, pLogHyp));
-
-				// D-F
-				else					pK->block(n*row, 0, n, m) = ((Scalar) -1.f) * (*(K_FD(pDist, deltaList[row-1], pLogHyp)));
-			}
-
-			return pK;
-		}
+	public:
+		static unsigned int					numRobotPoses;		// n2: X = {X1, X2}
 };
+
+// initialize the static member
+//unsigned int CovMaterniso3FDI::numRobotPoses = 0;
 
 }
 
