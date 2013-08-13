@@ -46,6 +46,22 @@ public:
 											 pMu, pSigma, fVarianceVector);
 	}
 
+	//// prediction
+	//void predict(MeanHypConstPtr			pMeanLogHyp, 
+	//					 CovHypConstPtr				pCovLogHyp, 
+	//					 LikHypConstPtr				pLikCovLogHyp, 
+	//					 MatrixConstPtr					pX, 
+	//					 VectorConstPtr					pY, 
+	//					 MatrixConstPtr					pXs, 
+	//					 VectorPtr							&pMu, 
+	//					 MatrixPtr							&pSigma, 
+	//					 bool									fVarianceVector = true)
+	//{
+	//	m_InfMethod.predict(pMeanLogHyp, pCovLogHyp, pLikCovLogHyp, 
+	//										 pX, pY, pXDerivatives, pYDerivatives, pXs, 
+	//										 pMu, pSigma, fVarianceVector);
+	//}
+
 	// nlZ, dnlZ
 	void negativeLogMarginalLikelihood(MeanHypConstPtr			pMeanLogHyp, 
 																	CovHypConstPtr			pCovLogHyp, 
@@ -62,6 +78,24 @@ public:
 																					   calculationMode);
 	}
 
+	//// nlZ, dnlZ
+	//void negativeLogMarginalLikelihood(MeanHypConstPtr			pMeanLogHyp, 
+	//																CovHypConstPtr			pCovLogHyp, 
+	//																LikHypConstPtr				pLikCovLogHyp, 
+	//																MatrixConstPtr				pX, 
+	//																VectorConstPtr				pY,
+	//																MatrixConstPtr				pXDerivatives, 
+	//																VectorConstPtr				pYDerivatives, 
+	//																Scalar								&nlZ, 
+	//																VectorPtr						&pDnlZ,
+	//																const int							calculationMode = 0)
+	//{
+	//	m_InfMethod.negativeLogMarginalLikelihood(pMeanLogHyp, pCovLogHyp, pLikCovLogHyp, 
+	//																				   pX, pY, pXDerivatives, pYDerivatives, 
+	//																				   nlZ, pDnlZ,
+	//																				   calculationMode);
+	//}
+
 	// train hyperparameters
 	template<class SearchStrategy, class StoppingStrategy>
 	void train(MatrixConstPtr			pX, 
@@ -74,6 +108,21 @@ public:
 		trainer.train<SearchStrategy, StoppingStrategy>(*this, pX, pY,
 																							pMeanLogHyp, pCovLogHyp, pLikCovLogHyp);
 	}
+
+	//// train hyperparameters
+	//template<class SearchStrategy, class StoppingStrategy>
+	//void train(MatrixConstPtr			pX, 
+	//				 VectorConstPtr			pY,
+	//				 MatrixConstPtr			pXDerivatives, 
+	//				 VectorConstPtr			pYDerivatives, 
+	//				 MeanHypPtr				pMeanLogHyp, 
+	//				 CovHypPtr					pCovLogHyp, 
+	//				 LikHypPtr					pLikCovLogHyp)
+	//{
+	//	Trainer<MeanFunc, CovFunc, LikFunc, InfMethod> trainer;
+	//	trainer.train<SearchStrategy, StoppingStrategy>(*this, pX, pY, pXDerivatives, pYDerivatives, 
+	//																						pMeanLogHyp, pCovLogHyp, pLikCovLogHyp);
+	//}
 
 protected:
 	// GP setting

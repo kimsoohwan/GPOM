@@ -91,6 +91,8 @@ public:
 		}
 	}
 
+
+	// nlZ, dnlZ
 	void negativeLogMarginalLikelihood(MeanHypConstPtr				pMeanLogHyp, 
 																	CovHypConstPtr				pCovLogHyp, 
 																	LikHypConstPtr					pLikCovLogHyp, 

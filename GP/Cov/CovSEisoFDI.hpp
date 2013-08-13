@@ -1,11 +1,12 @@
-#ifndef COVARIANCE_FUNCTION_SQUARED_EXPONENTIAL_ISO_BETWEEN_FUNCTION_VALUE_DERIVATIVE_AND_INTEGRALHPP
-#define COVARIANCE_FUNCTION_SQUARED_EXPONENTIAL_ISO_BETWEEN_FUNCTION_VALUE_DERIVATIVE_AND_INTEGRALHPP
+#ifndef COVARIANCE_FUNCTION_SQUARED_EXPONENTIAL_ISO_BETWEEN_FUNCTION_VALUE_DERIVATIVE_AND_INTEGRAL_HPP
+#define COVARIANCE_FUNCTION_SQUARED_EXPONENTIAL_ISO_BETWEEN_FUNCTION_VALUE_DERIVATIVE_AND_INTEGRAL_HPP
 
+#include "GP/Cov/CovFDIBase.hpp"
 #include "GP/Cov/CovSEiso.hpp"
 
 namespace GPOM{
 
-class CovSEisoFDI : public CovSEiso
+class CovSEisoFDI : public CovSEiso, public CovFDIBase
 {
 protected:
 	public:
@@ -203,6 +204,67 @@ protected:
 			return pK_DD;
 		}
 
+		//// covariance matrix given pair-wise sqaured distances and delta
+		//MatrixPtr K(MatrixPtr pSqDist, ConstDeltaList &deltaList, const int d, HypConstPtr pLogHyp, const int pdIndex = -1) const
+		//{
+		//	// input
+		//	// pSqDist (nxn): squared distances
+		//	// deltaList: list of delta (nxn)
+		//	// d: dimension of training inputs
+		//	// pLogHyp: log hyperparameters
+		//	// pdIndex: partial derivatives with respect to this parameter index
+
+		//	// output
+		//	// K: n(d+1) by n(d+1)
+		//	// 
+		//	// for example, when d = 3
+		//	//                    |   F (n)   |  D1 (n)  |  D2 (n)  |  D3 (n)  |
+		//	// K = -------------------------------------------------------------
+		//	//        F    (n) |    FF,          FD1,        FD2,       FD3 
+		//	//        D1 (n) |        -,       D1D1,     D1D2,     D1D3
+		//	//        D2 (n) |        -,                -,     D2D2,     D2D3
+		//	//        D3 (n) |        -,                -,              -,     D3D3
+
+		//	assert(pSqDist->rows() == pSqDist->cols());
+
+		//	const int n = pSqDist->rows();
+
+		//	// covariance matrix
+		//	MatrixPtr pK(new Matrix(n*(d+1), n*(d+1))); // n(d+1) by n(d+1)
+
+		//	// fill block matrices of FF, FD and DD in order
+		//	for(int row = 0; row <= d; row++)
+		//	{
+		//		const int startingRow = n*row;
+		//		for(int col = row; col <= d; col++)
+		//		{
+		//			const int startingCol = n*col;
+
+		//			// calculate the upper triangle
+		//			if(row == 0)
+		//			{
+		//				// F-F
+		//				if(col == 0)	pK->block(startingRow, startingCol, n, n) = *(K_FF(pSqDist, pLogHyp, pdIndex));
+
+		//				// F-D
+		//				else				pK->block(startingRow, startingCol, n, n) = *(K_FD(pSqDist, deltaList[col-1], pLogHyp, pdIndex));
+		//			}
+		//			else
+		//			{
+		//				// D-D
+		//									pK->block(startingRow, startingCol, n, n) = *(K_DD(pSqDist, 
+		//																															 deltaList[row-1], row-1, deltaList[col-1], col-1,
+		//																															 pLogHyp, pdIndex));
+		//			}
+
+		//			// copy its transpose
+		//			if(row != col)	pK->block(startingCol, startingRow, n, n).noalias() = pK->block(startingRow, startingCol, n, n).transpose();
+		//		}
+		//	}
+
+		//	return pK;
+		//}
+
 		// covariance matrix given pair-wise sqaured distances and delta
 		MatrixPtr K(MatrixPtr pSqDist, ConstDeltaList &deltaList, const int d, HypConstPtr pLogHyp, const int pdIndex = -1) const
 		{
@@ -217,19 +279,26 @@ protected:
 			// K: n(d+1) by n(d+1)
 			// 
 			// for example, when d = 3
-			//                    |   F (n)   |  D1 (n)  |  D2 (n)  |  D3 (n)  |
-			// K = ---------------------
-			//        F    (n) |    FF,          FD1,        FD2,       FD3 
-			//        D1 (n) |        -,       D1D1,     D1D2,     D1D3
-			//        D2 (n) |        -,                -,     D2D2,     D2D3
-			//        D3 (n) |        -,                -,              -,     D3D3
+			//                    |   F (n1)   |  D1 (n1)  |  D2 (n1)  |  D3 (n1)  | F (n2) |
+			// K = -------------------------------------------------------------
+			//        F    (n1) |    FF,           FD1,         FD2,        FD3,         FF
+			//        D1 (n1) |        -,        D1D1,      D1D2,      D1D3,      D1F
+			//        D2 (n1) |        -,                 -,      D2D2,      D2D3,      D2F
+			//        D3 (n1) |        -,                 -,               -,      D3D3,      D3F
+			//        F    (n2) |        -,                 -,               -,               -,         FF
+			//
+ 			//                          |    (n1)    |    (n2)   |
+			// sqDist = -------------------------------------------------------------
+			//                 (n1) |  n1 x n1,   n1 x n2
+			//                 (n2) |  n2 x n1,   n2 x n2
 
 			assert(pSqDist->rows() == pSqDist->cols());
 
-			const int n = pSqDist->rows();
+			const int n1 = pSqDist->rows() - NumRobotPoses;
+			const int n2 = NumRobotPoses;
 
 			// covariance matrix
-			MatrixPtr pK(new Matrix(n*(d+1), n*(d+1))); // n(d+1) by n(d+1)
+			MatrixPtr pK(new Matrix(n1*(d+1)+n2, n1*(d+1)+n2)); // n1(d+1)+n2 by n1(d+1)+n2
 
 			// fill block matrices of FF, FD and DD in order
 			for(int row = 0; row <= d; row++)
@@ -243,10 +312,10 @@ protected:
 					if(row == 0)
 					{
 						// F-F
-						if(col == 0)	pK->block(startingRow, startingCol, n, n) = *(K_FF(pSqDist, pLogHyp, pdIndex));
+						if(col == 0)	pK->block(startingRow, startingCol, n, n) = *(K_FF(pSqDist.topLeftCorner(n1, n1), pLogHyp, pdIndex));
 
 						// F-D
-						else				pK->block(startingRow, startingCol, n, n) = *(K_FD(pSqDist, deltaList[col-1], pLogHyp, pdIndex));
+						else				pK->block(startingRow, startingCol, n, n) = *(K_FD(pSqDist.topLeftCorner(n1, n1), deltaList[col-1], pLogHyp, pdIndex));
 					}
 					else
 					{
