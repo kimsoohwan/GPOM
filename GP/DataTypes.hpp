@@ -7,14 +7,15 @@
 //#include <Eigen/Sparse>
 
 namespace GPOM{
-	class PointMatrixDirection{
-	public:
-		static const bool fRowWisePointsMatrix = false;
+	class PointMatrixDirection
+	{
+		public:
+			static const bool fRowWisePointsMatrix = false;
 	};
 
 	// Scalar
-	//typedef	float																									Scalar;
-	typedef	double																								Scalar;
+	typedef	float																									Scalar;
+	//typedef	double																								Scalar;
 
 	// Matrix
 	typedef	Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic>		Matrix;
@@ -32,8 +33,8 @@ namespace GPOM{
 	typedef	boost::shared_ptr<const CholeskyFactor>								CholeskyFactorConstPtr;
 
 	// EPS
-	const Scalar EPSILON		= 1e-16;
-	const Scalar SQRT3			= 1.732050807568877;
+	const Scalar EPSILON		= 1e-16f;
+	const Scalar SQRT3			= 1.732050807568877f;
 }
 
 #endif

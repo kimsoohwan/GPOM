@@ -27,31 +27,62 @@ public:
 	//{
 	//}
 
-	void build(pcl::PointCloud<pcl::PointXYZ>::ConstPtr			pPoints, 
+	void build(pcl::PointCloud<pcl::PointXYZ>::ConstPtr			pHitPoints, 
 					  pcl::PointCloud<pcl::Normal>::ConstPtr				pNormals,
+					  pcl::PointCloud<pcl::PointXYZ>::ConstPtr			pRobotPositions, 
 					  const float																	mapResolution)
 	{
 		pcl::PointXYZ min, max;
-		pcl::getMinMax3D (*pPoints, min, max);
-		//std::cout << "min = " << min << std::endl;
-		//std::cout << "max = " << max << std::endl;
-		build(pPoints, pNormals, min, max, mapResolution);
+		pcl::getMinMax3D (*pHitPoints, min, max);
+		build(pHitPoints, pNormals, pRobotPositions, min, max, mapResolution);
 	}
 
-	void build(pcl::PointCloud<pcl::PointXYZ>::ConstPtr			pPoints, 
+	void build(pcl::PointCloud<pcl::PointXYZ>::ConstPtr			pHitPoints, 
 					  pcl::PointCloud<pcl::Normal>::ConstPtr				pNormals,
+					  pcl::PointCloud<pcl::PointXYZ>::ConstPtr			pRobotPositions, 
 					  const pcl::PointXYZ													&min,
 					  const pcl::PointXYZ													&max,
 					  const float																	mapResolution)
 	{
-		// training data
-		const Eigen::MatrixXf pointsMatrix = pPoints->getMatrixXfMap(3, 4, 0);
+		// concatenate point clouds
+		//const pcl::PointCloud<pcl::PointXYZ> pX = pHitPoints + pRobotPositions;
+		//CovFunc::numRobotPositions = pRobotPositions->size();
+
+		// training inputs
+		//const Matrix HitPointMatrix = pHitPoints->getMatrixXfMap(3, 4, 0);
+		//const Matrix RobotPositionMatrix = pRobotPositions->getMatrixXfMap(3, 4, 0);
+		const int n1 = pHitPoints->size();
+		const int n2 = pRobotPositions->size();
+		const int d = 3;
+		MatrixPtr  pX(new Matrix(d, n1+n2));
+		pX->leftCols(n1) = pHitPoints->getMatrixXfMap(3, 4, 0);
+		pX->rightCols(n2) = pRobotPositions->getMatrixXfMap(3, 4, 0);
+
 		//pointsMatrix.transposeInPlace();
-		std::cout << "rows: " << pointsMatrix.rows() << std::endl;
-		std::cout << "cols: " << pointsMatrix.cols() << std::endl;
+		//std::cout << "rows: " << X.rows() << std::endl;
+		//std::cout << "cols: " << X.cols() << std::endl;
 		//std::cout << pointsMatrix << std::endl;
 
-		//m_gp.train(pX, pY); // with default parameters
+		// training outputs
+		VectorPtr pY(new Vector(n1*(d+1) + n2));
+		pY->setZero();
+		for(int i = 0; i < n1; i++)
+		{
+			//(*pY)[i] = (Scalar) 0.f;								// F1(n1),
+			(*pY)[n1*1 + i] = (*pNormals)[i].normal_x;			// D1(n1)
+			(*pY)[n1*2 + i] = (*pNormals)[i].normal_y;			// D2(n1)
+			(*pY)[n1*3 + i] = (*pNormals)[i].normal_z;			// D3(n1)
+		}
+		//for(int i = 0; i < n2; i++)		(*pY)[n1*(d+1) + i] = (Scalar) 0.f;			// F2(n2)
+
+		// train with default parameters
+		MeanFunc::HypPtr		pMeanLogHyp(new MeanFunc::Hyp(*(MeanFunc::pDefaultHyp)));
+		CovFunc::HypPtr			pCovLogHyp(new CovFunc::Hyp(*(CovFunc::pDefaultHyp)));
+		LikFunc::HypPtr				pLikLogHyp(new LikFunc::Hyp(*(LikFunc::pDefaultHyp)));
+		m_gp.train<BFGS, DeltaFunc>(pX, pY, pMeanLogHyp, pCovLogHyp, pLikLogHyp);
+		std::cout << "Mean: " << std::endl << pMeanLogHyp->array().exp().matrix() << std::endl;
+		std::cout << "Cov: " << std::endl << pCovLogHyp->array().exp().matrix() << std::endl;
+		std::cout << "Lik: " << std::endl << pLikLogHyp->array().exp().matrix() << std::endl;
 
 		// test points
 

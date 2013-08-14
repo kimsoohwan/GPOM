@@ -74,6 +74,8 @@ namespace GPOM{
 		pPointNormals = mls.getOutputNormals();
 		//mls.setOutputNormals(mls_points);
 #endif
+
+		error flip to the camera position!!!
 	}
 }
 

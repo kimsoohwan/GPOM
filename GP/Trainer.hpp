@@ -4,7 +4,7 @@
 #include <climits>								// for std::numeric_limits<Scalar>::infinity()
 #include <dlib/optimization.h>			// for dlib::find_min
 
-#include "DataTypes.hpp"
+#include "GP/DataTypes.hpp"
 
 namespace GPOM{
 
@@ -44,7 +44,8 @@ public:
 	typedef	typename GaussianProcessType::LikHypPtr					LikHypPtr;
 	typedef	typename GaussianProcessType::LikHypConstPtr			LikHypConstPtr;
 
-	typedef	dlib::matrix<Scalar, 0, 1>														DlibVector;	
+	//typedef	dlib::matrix<Scalar, 0, 1>														DlibVector;	
+	typedef	dlib::matrix<double, 0, 1>														DlibVector;	
 
 
 // inner class
@@ -53,31 +54,25 @@ public:
 	class NlZ
 	{
 	public:
-		NlZ(TrainerType &parent, GaussianProcessType &gp)
-			: m_parent(parent), m_gp(gp)
+		NlZ(GaussianProcessType &gp)
+			: m_gp(gp)
 		{
 		}
 		~NlZ() { }
-		void setTrainingData(MatrixConstPtr		pX,
-											 VectorConstPtr		pY)
-		{
-			m_pX = pX;
-			m_pY = pY;
-		}
 
-		Scalar operator()(const DlibVector &hyp) const
+		//Scalar operator()(const DlibVector &hyp) const
+		double operator()(const DlibVector &hyp) const
 		{
 			// conversion from Dlib to Eigen vectors
 			MeanHypPtr				pMeanLogHyp(new MeanHyp());
 			CovHypPtr					pCovLogHyp(new CovHyp());
 			LikHypPtr					pLikCovLogHyp(new LikHyp());
-			m_parent.Dlib2Eigen(hyp, pMeanLogHyp, pCovLogHyp, pLikCovLogHyp);
+			Dlib2Eigen(hyp, pMeanLogHyp, pCovLogHyp, pLikCovLogHyp);
 
 			// calculate nlZ only
 			Scalar				nlZ;
 			VectorPtr		pDnlZ;
 			m_gp.negativeLogMarginalLikelihood(pMeanLogHyp, pCovLogHyp,pLikCovLogHyp, 
-																			   m_pX, m_pY,
 																			   nlZ, 
 																			   pDnlZ,
 																			   1);
@@ -86,27 +81,18 @@ public:
 		}
 
 	protected:
-		TrainerType							&m_parent;
 		GaussianProcessType			&m_gp;
-		MatrixConstPtr						m_pX; 
-		VectorConstPtr						m_pY;
 	};
 
 	// dnlZ
 	class DnlZ
 	{
 	public:
-		DnlZ(TrainerType &parent, GaussianProcessType &gp)
-			: m_parent(parent), m_gp(gp)
+		DnlZ(GaussianProcessType &gp)
+			: m_gp(gp)
 		{
 		}
 		~DnlZ() { }
-		void setTrainingData(MatrixConstPtr		pX,
-											 VectorConstPtr		pY)
-		{
-			m_pX = pX;
-			m_pY = pY;
-		}
 
 		DlibVector operator()(const DlibVector &hyp) const
 		{
@@ -114,36 +100,31 @@ public:
 			MeanHypPtr				pMeanLogHyp(new MeanHyp());
 			CovHypPtr					pCovLogHyp(new CovHyp());
 			LikHypPtr					pLikCovLogHyp(new LikHyp());
-			m_parent.Dlib2Eigen(hyp, pMeanLogHyp, pCovLogHyp, pLikCovLogHyp);
+			Dlib2Eigen(hyp, pMeanLogHyp, pCovLogHyp, pLikCovLogHyp);
 
 			// calculate dnlZ only
 			Scalar				nlZ;
 			VectorPtr		pDnlZ;
 			m_gp.negativeLogMarginalLikelihood(pMeanLogHyp, pCovLogHyp,pLikCovLogHyp, 
-																			   m_pX, m_pY,
 																			   nlZ,
 																			   pDnlZ,
 																			   -1);
 
 			DlibVector dnlZ(pMeanLogHyp->size() + pCovLogHyp->size() + pLikCovLogHyp->size());
-			m_parent.Eigen2Dlib(pDnlZ, dnlZ);
+			Eigen2Dlib(pDnlZ, dnlZ);
 			return dnlZ;
 		}
 
 	protected:
-		TrainerType							&m_parent;
 		GaussianProcessType			&m_gp;
-		MatrixConstPtr						m_pX; 
-		VectorConstPtr						m_pY;
 	};
 
 // method
 public:
+
 	// train hyperparameters
 	template<class SearchStrategy, class StoppingStrategy>
 	void train(GaussianProcessType		&gp,
-					 MatrixConstPtr						pX, 
-					 VectorConstPtr						pY,
 					 MeanHypPtr							pMeanLogHyp, 
 					 CovHypPtr								pCovLogHyp, 
 					 LikHypPtr								pLikCovLogHyp,
@@ -155,14 +136,17 @@ public:
 		// [0, -]:		max iteration criteria off
 
 		// set training data
-		NlZ								nlZ(*this, gp);
-		DnlZ							dnlZ(*this, gp);
-		nlZ.setTrainingData(pX, pY);
-		dnlZ.setTrainingData(pX, pY);
+		NlZ								nlZ(gp);
+		DnlZ							dnlZ(gp);
 
 		// hyperparameters
 		DlibVector hyp;
 		hyp.set_size(pMeanLogHyp->size() + pCovLogHyp->size() + pLikCovLogHyp->size());
+		//std::cout << "number of hyperparameters" << std::endl;
+		//std::cout << "mean: " << pMeanLogHyp->size() << std::endl;
+		//std::cout << "cov: " << pCovLogHyp->size() << std::endl;
+		//std::cout << "lik: " << pLikCovLogHyp->size() << std::endl;
+		//std::cout << "total number of hyperparameters: " << pMeanLogHyp->size() + pCovLogHyp->size() + pLikCovLogHyp->size() << std::endl;
 
 		// initialization
 		Eigen2Dlib(pMeanLogHyp, pCovLogHyp, pLikCovLogHyp, hyp);
@@ -191,16 +175,16 @@ public:
 
 protected:
 	// conversion between Eigen and Dlib vectors
-	void Eigen2Dlib(VectorConstPtr				pVector,
-								 DlibVector						&vec) const
+	static void Eigen2Dlib(VectorConstPtr				pVector,
+										   DlibVector						&vec)
 	{
 		for(int i = 0;		i < pVector->size();		i++)		vec(i, 0) = (*pVector)(i);
 	}
 
-	void Eigen2Dlib(MeanHypConstPtr				pMeanLogHyp, 
-								 CovHypConstPtr					pCovLogHyp, 
-								 LikHypConstPtr					pLikCovLogHyp,
-								 DlibVector								&hyp) const
+	static void Eigen2Dlib(MeanHypConstPtr				pMeanLogHyp, 
+											CovHypConstPtr				pCovLogHyp, 
+											LikHypConstPtr					pLikCovLogHyp,
+											DlibVector							&hyp)
 	{
 		int j = 0; // hyperparameter index
 		for(int i = 0;		i < pMeanLogHyp->size();		i++)		hyp(j++, 0) = (*pMeanLogHyp)(i);
@@ -208,10 +192,10 @@ protected:
 		for(int i = 0;		i < pLikCovLogHyp->size();		i++)		hyp(j++, 0) = (*pLikCovLogHyp)(i);
 	}
 
-	void Dlib2Eigen(const DlibVector					&hyp,
-								 MeanHypPtr							pMeanLogHyp, 
-								 CovHypPtr								pCovLogHyp, 
-								 LikHypPtr								pLikCovLogHyp) const
+	static void Dlib2Eigen(const DlibVector					&hyp,
+											MeanHypPtr							pMeanLogHyp, 
+											CovHypPtr								pCovLogHyp, 
+											LikHypPtr								pLikCovLogHyp)
 	{
 		int j = 0; // hyperparameter index
 		for(int i = 0;		i < pMeanLogHyp->size();		i++)		(*pMeanLogHyp)(i)		= hyp(j++, 0);

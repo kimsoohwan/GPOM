@@ -3,15 +3,15 @@
 
 #include <cmath>
 
-#include "GP/DataTypes.hpp"
+#include "GP/util/TrainingInputSetter.hpp"
 
 namespace GPOM{
 
-	class LikGauss
+	class LikGauss : public TrainingInputSetter
 	{
 	public:
 		// hyperparameters
-		typedef	Eigen::Matrix<Scalar, 1, 1>									Hyp;
+		typedef	Eigen::Matrix<Scalar, 1, 1>							Hyp;
 		typedef	boost::shared_ptr<Hyp>								HypPtr;
 		typedef	boost::shared_ptr<const Hyp>					HypConstPtr;
 
@@ -27,14 +27,20 @@ namespace GPOM{
 		}
 
 		// diagonal vector
-		VectorPtr operator()(MatrixConstPtr pX, HypConstPtr pLogHyp, const int pdIndex = -1) const
+		VectorPtr operator()(HypConstPtr pLogHyp, const int pdIndex = -1) const
 		{
+			assert(pdIndex < 1);
+
 			// number of training data
-			const int n  = PointMatrixDirection::fRowWisePointsMatrix ? pX->rows()   : pX->cols();
-			
+			const int n = getN();
 			VectorPtr pD(new Vector(n));
-			if(pdIndex == -1)			pD->fill(exp((Scalar) 2.f * (*pLogHyp)(0)));
-			else									pD->fill(((Scalar) 2.f) * exp((Scalar) 2.f * (*pLogHyp)(0)));
+
+			// derivatives w.r.t sn
+			if(pdIndex == 0)				pD->fill(((Scalar) 2.f) * exp((Scalar) 2.f * (*pLogHyp)(0)));
+
+			// likelihood
+			else									pD->fill(exp((Scalar) 2.f * (*pLogHyp)(0)));
+
 			return pD;
 		}
 
@@ -42,15 +48,20 @@ namespace GPOM{
 		//MatrixPtr operator()(MatrixConstPtr pX, HypConstPtr pLogHyp, const int pdIndex = -1) const
 		//{
 		//	// number of training data
-		//	const int n  = PointMatrixDirection::fRowWisePointsMatrix ? pX->rows()   : pX->cols();
-
+		//	const int n = getN();
 		//	MatrixPtr pD(new Matrix(n, n));
 		//	pD->setZero();
-		//	if(pdIndex == -1)		pD->diagonal().fill(exp((Scalar) 2.f * (*pLogHyp)(0)));
-		//	else								pD->diagonal().fill(((Scalar) 2.f) * exp((Scalar) 2.f * (*pLogHyp)(0)));
+
+		//	// derivatives w.r.t sn
+		//	if(pdIndex == 0)			pD->diagonal().fill(((Scalar) 2.f) * exp((Scalar) 2.f * (*pLogHyp)(0)));
+
+		//	// likelihood
+		//	else								pD->diagonal().fill(exp((Scalar) 2.f * (*pLogHyp)(0)));
+
 		//	return pD;
 		//}
 	};
+
 }
 
 #endif

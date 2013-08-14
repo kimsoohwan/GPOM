@@ -8,12 +8,15 @@
 #include "GP/DataTypes.hpp"
 #include "GP/util/sqDistances.hpp"
 #include "GP/Mean/MeanZero.hpp"
+#include "GP/Mean/MeanZeroFDI.hpp"
 #include "GP/Cov/CovSEiso.hpp"
 #include "GP/Cov/CovMaterniso.hpp"
 #include "GP/Cov/CovSEisoFDI.hpp"
 #include "GP/Cov/CovMaternisoFDI.hpp"
 #include "GP/Lik/LikGauss.hpp"
+#include "GP/Lik/LikGaussFDI.hpp"
 #include "GP/Inf/InfExact.hpp"
+#include "GP/Inf/InfExactFDI.hpp"
 //#include "InfExactUnstable.hpp"
 #include "GP/GP.hpp"
 
@@ -36,7 +39,7 @@ const int n2 = 2;
 // X, Xs
 Matrix X(n, d);
 Matrix Xs(m, d);
-MatrixPtr pX, pXs;
+MatrixPtr pX, pXs, pXd;
 VectorPtr pY;
 
 // hyp
@@ -50,26 +53,31 @@ CovSEiso						covSEiso;
 CovMaterniso3				covMaterniso3;
 CovSEisoFDI				covSEisoFDI;
 CovMaterniso3FDI		covMaterniso3FDI;
-unsigned int CovSEisoFDI::numRobotPoses			= n2;
-unsigned int CovMaterniso3FDI::numRobotPoses = n2;
 
 // GP
-typedef GaussianProcess<MeanZero, CovSEiso,				LikGauss, InfExact>		GPCovSEiso;
-typedef GaussianProcess<MeanZero, CovMaterniso3,		LikGauss, InfExact>		GPCovMaterniso3;
-GPCovSEiso				gpCovSEiso;
-GPCovMaterniso3	gpCovMaterniso3;
+typedef GaussianProcess<MeanZero,			CovSEiso,					LikGauss,			InfExact>				GPCovSEiso;
+typedef GaussianProcess<MeanZero,			CovMaterniso3,			LikGauss,			InfExact>				GPCovMaterniso3;
+typedef GaussianProcess<MeanZeroFDI,	CovSEisoFDI,			LikGaussFDI,		InfExactFDI>		GPCovSEisoFDI;
+typedef GaussianProcess<MeanZeroFDI,	CovMaterniso3FDI,	LikGaussFDI,		InfExactFDI>		GPCovMaterniso3FDI;
+GPCovSEiso						gpCovSEiso;
+GPCovMaterniso3			gpCovMaterniso3;
+GPCovSEisoFDI				gpCovSEisoFDI;
+GPCovMaterniso3FDI		gpCovMaterniso3FDI;
 
 // hyperparameters
-GPCovSEiso::MeanHypPtr		pMeanLogHyp;
-GPCovSEiso::CovHypPtr		pCovLogHyp;
-GPCovSEiso::LikHypPtr			pLikLogHyp;
+GPCovSEiso::MeanHypPtr				pMeanLogHyp;
+GPCovSEiso::CovHypPtr				pCovLogHyp;
+GPCovSEiso::LikHypPtr					pLikLogHyp;
+GPCovSEisoFDI::MeanHypPtr		pMeanLogHypFDI;
+GPCovSEisoFDI::CovHypPtr			pCovLogHypFDI;
+GPCovSEisoFDI::LikHypPtr			pLikLogHypFDI;
 
 // nlZ, dnlZ
 Scalar nlZ;
 VectorPtr pDnlZ;
 
 // GPOM
-typedef GaussianProcess<MeanZero, CovMaterniso3FDI, LikGauss, InfExact>		GPOMType;
+typedef GaussianProcess<MeanZeroFDI, CovMaterniso3FDI, LikGaussFDI, InfExactFDI>		GPOMType;
 GPOMType gpom;
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -163,7 +171,8 @@ BOOST_AUTO_TEST_CASE(covSEiso_K) {
 	(*pLogHyp)(1) = log(2.5f);
 
 	// covSEiso
-	pK = covSEiso.K(pX, pLogHyp);
+	covSEiso.setTrainingInputs(pX);
+	pK = covSEiso.K(pLogHyp);
 	//pK->triangularView<Eigen::StrictlyLower>() = pK->transpose().eval().triangularView<Eigen::StrictlyLower>();
 
 	// check
@@ -181,7 +190,7 @@ BOOST_AUTO_TEST_CASE(covSEiso_K1) {
 				   0.022704161684350,   0.000018272533385,   0.012576971488505,                   0;
 
 	// covSEiso
-	pK = covSEiso.K(pX, pLogHyp, 0);
+	pK = covSEiso.K(pLogHyp, 0);
 	//pK->triangularView<Eigen::StrictlyLower>() = pK->transpose().eval().triangularView<Eigen::StrictlyLower>();
 
 	// check
@@ -199,7 +208,7 @@ BOOST_AUTO_TEST_CASE(covSEiso_K2) {
 				 0.002688650725778,   0.000001126389044,   0.001380399309714,  12.500000000000000;
 
 	// covSEiso
-	pK = covSEiso.K(pX, pLogHyp, 1);
+	pK = covSEiso.K(pLogHyp, 1);
 	//pK->triangularView<Eigen::StrictlyLower>() = pK->transpose().eval().triangularView<Eigen::StrictlyLower>();
 
 	// check
@@ -217,7 +226,7 @@ BOOST_AUTO_TEST_CASE(covSEiso_Ks) {
 				  1.056333221287912,   0.009933295521603,   0.542339559212058,   0.542339559212058,   0.000059891612253,   0.000690199654857,   0.000000095187373;
 
 	// covSEiso
-	pKs = covSEiso.Ks(pX, pXs, pLogHyp);
+	pKs = covSEiso.Ks(pXs, pLogHyp);
 
 	// check
     BOOST_CHECK_EQUAL(((Ks_ - (*pKs)).array().abs() < epsilon).all(), true);
@@ -254,7 +263,8 @@ BOOST_AUTO_TEST_CASE(covMaterniso3_K) {
    0.041115074044017,   0.003526084701227,   0.032269615509369,   6.250000000000000;
 
 	// covMaterniso3
-	pK = covMaterniso3.K(pX, pLogHyp);
+	covMaterniso3.setTrainingInputs(pX);
+	pK = covMaterniso3.K(pLogHyp);
 
 	// check
     BOOST_CHECK_EQUAL(((K_ - (*pK)).array().abs() < epsilon).all(), true);
@@ -272,7 +282,7 @@ BOOST_AUTO_TEST_CASE(covMaterniso3_K1) {
    0.256608815569039,   0.031585954113480,   0.210166458786028,                   0;
 
 	// covMaterniso3
-	pK = covMaterniso3.K(pX, pLogHyp, 0);
+	pK = covMaterniso3.K(pLogHyp, 0);
 
 	// check
     BOOST_CHECK_EQUAL(((K_ - (*pK)).array().abs() < epsilon).all(), true);
@@ -290,7 +300,7 @@ BOOST_AUTO_TEST_CASE(covMaterniso3_K2) {
    0.082230148088033,   0.007052169402453,   0.064539231018739,  12.500000000000000,
 
 	// covMaterniso3
-	pK = covMaterniso3.K(pX, pLogHyp, 1);
+	pK = covMaterniso3.K(pLogHyp, 1);
 
 	// check
     BOOST_CHECK_EQUAL(((K_ - (*pK)).array().abs() < epsilon).all(), true);
@@ -308,7 +318,7 @@ BOOST_AUTO_TEST_CASE(covMaterniso3_Ks) {
    1.017418517656050,   0.089899911429187,   0.655510558942211,   0.655510558942210,   0.014105293314179,   0.032269615509369,   0.002183589344730;
 
 	// covMaterniso3
-	pKs = covMaterniso3.Ks(pX, pXs, pLogHyp);
+	pKs = covMaterniso3.Ks(pXs, pLogHyp);
 
 	// check
     BOOST_CHECK_EQUAL(((Ks_ - (*pKs)).array().abs() < epsilon).all(), true);
@@ -377,8 +387,8 @@ BOOST_AUTO_TEST_CASE(covSEiso_predict) {
 	// predict 
 	VectorPtr pMu;
 	MatrixPtr pVariance;
-	gpCovSEiso.predict(pMeanLogHyp, pCovLogHyp, pLikLogHyp, 
-										pX, pY, pXs, 
+	gpCovSEiso.setTrainingData(pX, pY);
+	gpCovSEiso.predict(pMeanLogHyp, pCovLogHyp, pLikLogHyp, pXs, 
 										pMu, pVariance);
 
 
@@ -420,16 +430,11 @@ BOOST_AUTO_TEST_CASE(covMaterniso3_predict) {
 	(*pCovLogHyp)(1) = log(2.5f);
 	(*pLikLogHyp)(0)	= log(0.3f);
 
-	// Y
-	if(PointMatrixDirection::fRowWisePointsMatrix)	pY.reset(new Vector(pX->rows()));
-	else																				pY.reset(new Vector(pX->cols()));
-	(*pY) << 1, 4, 3, 7;
-
 	// predict 
 	VectorPtr pMu;
 	MatrixPtr pVariance;
-	gpCovMaterniso3.predict(pMeanLogHyp, pCovLogHyp, pLikLogHyp, 
-												 pX, pY, pXs, 
+	gpCovMaterniso3.setTrainingData(pX, pY);
+	gpCovMaterniso3.predict(pMeanLogHyp, pCovLogHyp, pLikLogHyp, pXs, 
 												 pMu, pVariance);
 
 
@@ -451,7 +456,6 @@ BOOST_AUTO_TEST_CASE(covSEiso_nlZ_dnlZ) {
 
 	// nlZ, dnlZ
 	gpCovSEiso.negativeLogMarginalLikelihood(pMeanLogHyp, pCovLogHyp, pLikLogHyp, 
-																				   pX, pY,
 																				   nlZ, 
 																				   pDnlZ);
 
@@ -478,7 +482,6 @@ BOOST_AUTO_TEST_CASE(covMaterniso3_nlZ_dnlZ) {
 
 	// nlZ, dnlZ
 	gpCovMaterniso3.negativeLogMarginalLikelihood(pMeanLogHyp, pCovLogHyp, pLikLogHyp, 
-																							pX, pY,
 																							nlZ, 
 																							pDnlZ);
 
@@ -502,9 +505,8 @@ BOOST_AUTO_TEST_CASE(covSEiso_train) {
 	Scalar nlZ_ = 10.478356782033270;
 
 	// train
-	gpCovSEiso.train<BFGS, DeltaFunc>(pX, pY, pMeanLogHyp, pCovLogHyp, pLikLogHyp);
+	gpCovSEiso.train<BFGS, DeltaFunc>(pMeanLogHyp, pCovLogHyp, pLikLogHyp);
 	gpCovSEiso.negativeLogMarginalLikelihood(pMeanLogHyp, pCovLogHyp, pLikLogHyp, 
-																				   pX, pY,
 																				   nlZ, 
 																				   pDnlZ);
 
@@ -535,9 +537,8 @@ BOOST_AUTO_TEST_CASE(covMaterniso3_train) {
 	Scalar nlZ_ = 10.449405846170231;
 
 	// train
-	gpCovMaterniso3.train<BFGS, DeltaFunc>(pX, pY, pMeanLogHyp, pCovLogHyp, pLikLogHyp);
+	gpCovMaterniso3.train<BFGS, DeltaFunc>(pMeanLogHyp, pCovLogHyp, pLikLogHyp);
 	gpCovMaterniso3.negativeLogMarginalLikelihood(pMeanLogHyp, pCovLogHyp, pLikLogHyp, 
-																					        pX, pY,
 																							nlZ, 
 																							pDnlZ);
 
@@ -562,6 +563,18 @@ BOOST_AUTO_TEST_SUITE(suite_CovFDI)
 // TEST1: CovSEisoFDI
 BOOST_AUTO_TEST_CASE(CovSEisoFDI) {
 
+	// X, Xd
+	if(PointMatrixDirection::fRowWisePointsMatrix)
+	{
+		pXd.reset(new Matrix(X.topRows(n1)));
+		pX.reset(new Matrix(X.bottomRows(n2)));
+	}
+	else	
+	{
+		pXd.reset(new Matrix(X.leftCols(n1)));
+		pX.reset(new Matrix(X.rightCols(n2)));
+	}
+
 	// K
 	Matrix K(n1*(d+1)+n2, n1*(d+1)+n2);
 
@@ -579,7 +592,8 @@ BOOST_AUTO_TEST_CASE(CovSEisoFDI) {
 0.001344325362889, 0.000000563194522, 0.003584867634371, 0.000000000000000, -0.000597477939062, -0.000002002469412, 0.000597477939062, -0.000000750926030, 0.000690199654857, 6.250000000000000;
 
 	// CovSEisoFDI
-	pK = covSEisoFDI.K(pX, pLogHyp);
+	covSEisoFDI.setTrainingInputs(pXd, pX);
+	pK = covSEisoFDI.K(pLogHyp);
 
 	// check
     BOOST_CHECK_EQUAL(((K - (*pK)).array().abs() < epsilon).all(), true);
@@ -598,7 +612,7 @@ BOOST_AUTO_TEST_CASE(CovSEisoFDI) {
 0.022704161684350, 0.000018272533385, 0.053374695889525, 0.000000000000000, -0.008895782648254, -0.000060964068766, 0.008895782648254, -0.000022861525787, 0.012576971488505, 0.000000000000000;
 
 	// partial CovSEisoFDI w.r.t log(ell)
-	pK = covSEisoFDI.K(pX, pLogHyp, 0);
+	pK = covSEisoFDI.K(pLogHyp, 0);
 
 	// check
     BOOST_CHECK_EQUAL(((K - (*pK)).array().abs() < epsilon).all(), true);
@@ -617,7 +631,7 @@ BOOST_AUTO_TEST_CASE(CovSEisoFDI) {
 0.002688650725778, 0.000001126389044, 0.007169735268742, 0.000000000000000, -0.001194955878124, -0.000004004938824, 0.001194955878124, -0.000001501852059, 0.001380399309714, 12.500000000000000;
 
 	// partial CovSEisoFDI w.r.t log(sigma_f)
-	pK = covSEisoFDI.K(pX, pLogHyp, 1);
+	pK = covSEisoFDI.K(pLogHyp, 1);
 
 	// check
     BOOST_CHECK_EQUAL(((K - (*pK)).array().abs() < epsilon).all(), true);
@@ -637,7 +651,7 @@ BOOST_AUTO_TEST_CASE(CovSEisoFDI) {
 1.056333221287913, 0.009933295521603, 0.542339559212059, 0.542339559212058, 0.000059891612253, 0.000690199654857, 0.000000095187373;
 
 	// partial CovSEisoFDI w.r.t log(ell)
-	pK = covSEisoFDI.Ks(pX, pXs, pLogHyp);
+	pK = covSEisoFDI.Ks(pXs, pLogHyp);
 
 	// check
     BOOST_CHECK_EQUAL(((K_ - (*pK)).array().abs() < epsilon).all(), true);
@@ -663,7 +677,8 @@ BOOST_AUTO_TEST_CASE(CovMaterniso3FDI) {
 0.041115074044017, 0.003526084701227, 0.040517181405638, 0.000000000000000, -0.006752863567606, -0.003461474423395, 0.006752863567606, -0.001298052908773, 0.032269615509369, 6.250000000000000;
 
 	// CovMaterniso3FDI
-	pK = covMaterniso3FDI.K(pX, pLogHyp);
+	covMaterniso3FDI.setTrainingInputs(pXd, pX);
+	pK = covMaterniso3FDI.K(pLogHyp);
 
 	// check
     BOOST_CHECK_EQUAL(((K - (*pK)).array().abs() < epsilon).all(), true);
@@ -682,7 +697,7 @@ BOOST_AUTO_TEST_CASE(CovMaterniso3FDI) {
 0.256608815569039, 0.031585954113480, 0.207369048135220, 0.000000000000000, -0.034561508022537, -0.027227146876233, 0.034561508022537, -0.010210180078587, 0.210166458786028, 0.000000000000000;
 
 	// partial CovMaterniso3FDI w.r.t log(ell)
-	pK = covMaterniso3FDI.K(pX, pLogHyp, 0);
+	pK = covMaterniso3FDI.K(pLogHyp, 0);
 	//std::cout << "error < eps " << std::endl << ((K - (*pK)).array().abs() < epsilon).matrix() << std::endl << std::endl;
 
 	// check
@@ -702,7 +717,7 @@ BOOST_AUTO_TEST_CASE(CovMaterniso3FDI) {
 0.082230148088033, 0.007052169402453, 0.081034362811276, 0.000000000000000, -0.013505727135213, -0.006922948846790, 0.013505727135213, -0.002596105817546, 0.064539231018739, 12.500000000000000;
 
 	// partial CovMaterniso3FDI w.r.t log(sigma_f)
-	pK = covMaterniso3FDI.K(pX, pLogHyp, 1);
+	pK = covMaterniso3FDI.K(pLogHyp, 1);
 
 	// check
     BOOST_CHECK_EQUAL(((K - (*pK)).array().abs() < epsilon).all(), true);
@@ -722,10 +737,232 @@ BOOST_AUTO_TEST_CASE(CovMaterniso3FDI) {
 1.017418517656051, 0.089899911429187, 0.655510558942211, 0.655510558942210, 0.014105293314179, 0.032269615509369, 0.002183589344730;
 
 	// partial CovMaterniso3FDI w.r.t log(ell)
-	pK = covMaterniso3FDI.Ks(pX, pXs, pLogHyp);
+	pK = covMaterniso3FDI.Ks(pXs, pLogHyp);
 
 	// check
     BOOST_CHECK_EQUAL(((K_ - (*pK)).array().abs() < epsilon).all(), true);
+}
+
+BOOST_AUTO_TEST_SUITE_END()
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+BOOST_AUTO_TEST_SUITE(suite_gpFDI)
+
+// TEST1: CovSEiso predict
+BOOST_AUTO_TEST_CASE(covSEisoFDI_predict) {
+	// mu
+	Vector Mu(7);
+	Mu << 
+1.167265651407814, 
+0.121667561812148, 
+0.727590824727964, 
+0.598656126110267, 
+1.085253102760424, 
+0.029276929914667, 
+1.351836296683708;
+
+	// variance
+	Matrix Variance(7, 1);
+	Variance <<
+6.073996552673053, 
+6.233713024506768, 
+6.177563738357781, 
+6.203606885673762, 
+5.432609949234843, 
+6.249866103880930, 
+1.621649502390111;
+
+	// hyperparameters
+	pMeanLogHypFDI.reset(new GPCovSEisoFDI::MeanHyp());
+	pCovLogHypFDI.reset(new GPCovSEisoFDI::CovHyp());
+	pLikLogHypFDI.reset(new GPCovSEisoFDI::LikHyp());	
+	(*pCovLogHypFDI)(0)	= log(1.5f);
+	(*pCovLogHypFDI)(1)	= log(2.5f);
+	(*pLikLogHypFDI)(0)	= log(0.3f);
+	(*pLikLogHypFDI)(1)	= log(0.5f);
+
+	// Y
+	const int n = n1*(d+1) + n2;
+	pY.reset(new Vector(n));
+
+	(*pY) << 1, 4, 1, -1, 2, -2, 3, -3, 3, 7;
+
+	// predict 
+	VectorPtr pMu;
+	MatrixPtr pVariance;
+	gpCovSEisoFDI.setTrainingData(pXd, pX, pY);
+	gpCovSEisoFDI.predict(pMeanLogHypFDI, pCovLogHypFDI, pLikLogHypFDI, pXs, 
+											   pMu, pVariance);
+
+	//std::cout << "Mu = " << std::endl << Mu << std::endl;
+	//std::cout << "pMu = " << std::endl << *pMu << std::endl;
+	//std::cout << "Variance = " << std::endl << Variance << std::endl;
+	//std::cout << "pVariance = " << std::endl << *pVariance << std::endl;
+
+	// check
+    BOOST_CHECK_EQUAL(((Mu - (*pMu)).array().abs() < epsilon).all(), true);
+    BOOST_CHECK_EQUAL(((Variance - (*pVariance)).array().abs() < epsilon).all(), true);
+}
+
+// TEST2: CovMaterniso3 predict
+BOOST_AUTO_TEST_CASE(covMaterniso3FDI_predict) {
+	// mu
+	Vector Mu(7);
+	Mu <<    
+1.142484608740144, 
+0.420795894405955, 
+0.877201196518749, 
+0.723152425724845, 
+0.892923033731164, 
+0.131651508394764, 
+1.650658671872036;
+
+	// variance
+	Matrix Variance(7, 1);
+	Variance <<
+6.086360539738958, 
+6.213542618602832, 
+6.152116346571196, 
+6.182214471291521, 
+5.753165083525668, 
+6.247909118334887, 
+4.002599441046522;
+
+	// hyperparameters
+	pMeanLogHypFDI.reset(new GPCovMaterniso3FDI::MeanHyp());
+	pCovLogHypFDI.reset(new GPCovMaterniso3FDI::CovHyp());
+	pLikLogHypFDI.reset(new GPCovMaterniso3FDI::LikHyp());	
+	(*pCovLogHypFDI)(0) = log(1.5f);
+	(*pCovLogHypFDI)(1) = log(2.5f);
+	(*pLikLogHypFDI)(0)	= log(0.3f);
+	(*pLikLogHypFDI)(1)	= log(0.5f);
+
+	// predict 
+	VectorPtr pMu;
+	MatrixPtr pVariance;
+	gpCovMaterniso3FDI.setTrainingData(pXd, pX, pY);
+	gpCovMaterniso3FDI.predict(pMeanLogHypFDI, pCovLogHypFDI, pLikLogHypFDI, pXs, 
+												 pMu, pVariance);
+
+
+	// check
+    BOOST_CHECK_EQUAL(((Mu - (*pMu)).array().abs() < epsilon).all(), true);
+    BOOST_CHECK_EQUAL(((Variance - (*pVariance)).array().abs() < epsilon).all(), true);
+}
+
+// TEST3: nlZ, dnlZ
+BOOST_AUTO_TEST_CASE(covSEisoFDI_nlZ_dnlZ) {
+	// mu
+	Scalar nlZ_ =  22.463837737581208;
+
+	// variance
+	Vector dnlZ(4);
+	dnlZ <<  1.904846643457619,
+				   -9.370540033620424,
+				   -0.081760870083573,
+				   -0.217650229763713;
+
+	// nlZ, dnlZ
+	gpCovSEisoFDI.negativeLogMarginalLikelihood(pMeanLogHypFDI, pCovLogHypFDI, pLikLogHypFDI, 
+																							nlZ, 
+																							pDnlZ);
+
+	//std::cout << "nlZ_ = " << std::endl << nlZ_ << std::endl << std::endl;
+	//std::cout << "nlZ = " << std::endl << nlZ << std::endl << std::endl;
+	//std::cout << "dnlZ_ = " << std::endl << dnlZ << std::endl << std::endl;
+	//std::cout << "dnlZ = " << std::endl << *pDnlZ << std::endl << std::endl;
+
+	// check
+	BOOST_CHECK_EQUAL(std::abs(nlZ_ - nlZ) < epsilon, true);
+    BOOST_CHECK_EQUAL(((dnlZ - (*pDnlZ)).array().abs() < epsilon).all(), true);
+}
+
+// TEST4: nlZ, dnlZ
+BOOST_AUTO_TEST_CASE(covMaterniso3FDI_nlZ_dnlZ) {
+	// mu
+	Scalar nlZ_ =   22.766376457009354;
+
+	// variance
+	Vector dnlZ(4);
+	dnlZ <<  -3.625130096684514,
+				  -4.427828362546538,
+				  -0.097970450407589,
+				  0.093270935853114;
+
+	// nlZ, dnlZ
+	gpCovMaterniso3FDI.negativeLogMarginalLikelihood(pMeanLogHypFDI, pCovLogHypFDI, pLikLogHypFDI, 
+																								  nlZ, 
+																								  pDnlZ);
+
+	// check
+	BOOST_CHECK_EQUAL(std::abs(nlZ_ - nlZ) < epsilon, true);
+    BOOST_CHECK_EQUAL(((dnlZ - (*pDnlZ)).array().abs() < epsilon).all(), true);
+}
+
+// TEST5: covSEiso train hyperparameters
+BOOST_AUTO_TEST_CASE(covSEisoFDI_train) {
+	// initial hyperparameters
+	(*pCovLogHypFDI)(0) = log(1.5f);
+	(*pCovLogHypFDI)(1) = log(2.5f);
+	(*pLikLogHypFDI)(0)	= log(0.3f);
+	(*pLikLogHypFDI)(1)	= log(0.5f);
+
+	// trained hyperparameters
+	GPCovSEisoFDI::CovHyp			covLogHypFDI;		covLogHypFDI << 1.731029732129951, 1.523397558917514;
+	GPCovSEisoFDI::LikHyp				likLogHypFDI;		likLogHypFDI << -2.562328044825808, 0.504947234287582;
+
+	// nlZ
+	Scalar nlZ_ = 22.463837737581208;
+
+	// train
+	gpCovSEisoFDI.train<BFGS, DeltaFunc>(pMeanLogHypFDI, pCovLogHypFDI, pLikLogHypFDI, 10);
+	gpCovSEisoFDI.negativeLogMarginalLikelihood(pMeanLogHypFDI, pCovLogHypFDI, pLikLogHypFDI, 
+																						 nlZ, 
+																						 pDnlZ);
+
+	// check
+	std::cout << "covHypFDI = " << std::endl << covLogHypFDI.array().exp() << std::endl << std::endl;
+	std::cout << "pCovHypFDI = " << std::endl << pCovLogHypFDI->array().exp() << std::endl << std::endl;
+	std::cout << "likHypFDI = " << std::endl << likLogHypFDI.array().exp() << std::endl << std::endl;
+	std::cout << "pLikHypFDI = " << std::endl << pLikLogHypFDI->array().exp() << std::endl << std::endl;
+	std::cout << "nlZ_ = " << std::endl << nlZ_ << std::endl << std::endl;
+	std::cout << "nlZ = " << std::endl << nlZ << std::endl << std::endl;
+    BOOST_CHECK_EQUAL(((covLogHypFDI - (*pCovLogHypFDI)).array().abs() < epsilon).all(), true);
+    BOOST_CHECK_EQUAL(((likLogHypFDI - (*pLikLogHypFDI)).array().abs() < epsilon).all(), true);
+	BOOST_CHECK_EQUAL(std::abs(nlZ_ - nlZ) < epsilon, true);
+}
+
+// TEST6: covMaterniso3 train hyperparameters
+BOOST_AUTO_TEST_CASE(covMaterniso3FDI_train) {
+	// initial hyperparameters
+	(*pCovLogHypFDI)(0) = log(1.5f);
+	(*pCovLogHypFDI)(1) = log(2.5f);
+	(*pLikLogHypFDI)(0)	= log(0.3f);
+	(*pLikLogHypFDI)(0)	= log(0.5f);
+
+	// trained hyperparameters
+	GPCovSEisoFDI::CovHyp			covLogHypFDI;		covLogHypFDI << 2.032838483561243, 1.502523725227370;
+	GPCovSEisoFDI::LikHyp				likLogHypFDI;		likLogHypFDI << -2.153018386984240, 0.517336654669191;
+
+	// nlZ
+	Scalar nlZ_ = 22.766376457009354;
+
+	// train
+	gpCovMaterniso3FDI.train<BFGS, DeltaFunc>(pMeanLogHypFDI, pCovLogHypFDI, pLikLogHypFDI);
+	gpCovMaterniso3FDI.negativeLogMarginalLikelihood(pMeanLogHypFDI, pCovLogHypFDI, pLikLogHypFDI, 
+																								  nlZ, 
+																								  pDnlZ);
+
+	// check
+	std::cout << "covHypFDI = " << std::endl << covLogHypFDI.array().exp() << std::endl << std::endl;
+	std::cout << "pCovHypFDI = " << std::endl << pCovLogHypFDI->array().exp() << std::endl << std::endl;
+	std::cout << "likHypFDI = " << std::endl << likLogHypFDI.array().exp() << std::endl << std::endl;
+	std::cout << "pLikHypFDI = " << std::endl << pLikLogHypFDI->array().exp() << std::endl << std::endl;
+	std::cout << "nlZ_ = " << std::endl << nlZ_ << std::endl << std::endl;
+	std::cout << "nlZ = " << std::endl << nlZ << std::endl << std::endl;
+    BOOST_CHECK_EQUAL(((covLogHypFDI - (*pCovLogHypFDI)).array().abs() < epsilon).all(), true);
+    BOOST_CHECK_EQUAL(((likLogHypFDI - (*pLikLogHypFDI)).array().abs() < epsilon).all(), true);
+	BOOST_CHECK_EQUAL(std::abs(nlZ_ - nlZ) < epsilon, true);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
@@ -738,6 +975,7 @@ BOOST_AUTO_TEST_SUITE_END()
 #include <pcl/io/pcd_io.h>
 #include <pcl/features/normal_3d.h>
 #include <pcl/surface/mls.h>
+#include <pcl/visualization/cloud_viewer.h>	// pcl::visualization::CloudViewer
 
 #include "GP/Mean/MeanZero.hpp"
 #include "GP/Cov/CovMaternisoFDI.hpp"
@@ -753,34 +991,51 @@ typedef GaussianProcessOccupancyMap<MeanZero, CovMaterniso3FDI, LikGauss, InfExa
 
 int main()
 {
-	// Point Clouds
-	pcl::PointCloud<pcl::PointXYZ>::Ptr pPoints (new pcl::PointCloud<pcl::PointXYZ>);
+	// Point Clouds - Hits
+	pcl::PointCloud<pcl::PointXYZ>::Ptr pHitPoints(new pcl::PointCloud<pcl::PointXYZ>);
 
 	// Load data from a PCD file
-	std::string filenName("input.pcd");
-	//std::string filenName("../../../PCL/PCL-1.5.1-Source/test/bunny.pcd");
-	if (pcl::io::loadPCDFile<pcl::PointXYZ>(filenName, *pPoints) == -1)
+	//std::string filenName("input.pcd");
+	std::string filenName("../../../PCL/PCL-1.5.1-Source/test/bunny.pcd");
+	if (pcl::io::loadPCDFile<pcl::PointXYZ>(filenName, *pHitPoints) == -1)
 	{
 		PCL_ERROR("Couldn't read file!\n");
 		return -1;
 	}
 	else
 	{
-		std::cout << pPoints->size() << " points are successfully loaded." << std::endl;
+		std::cout << pHitPoints->size() << " points are successfully loaded." << std::endl;
 	}
+
+	// Point Clouds - Robot positions
+	pcl::PointCloud<pcl::PointXYZ>::Ptr pRobotPositions(new pcl::PointCloud<pcl::PointXYZ>);
+	pRobotPositions->push_back(pcl::PointXYZ(0.f, 0.075f, 1.0f));
+
+	//// min, max
+	//pcl::PointXYZ min, max;
+	//pcl::getMinMax3D (*pHitPoints, min, max);
+	//std::cout << "min = " << min << std::endl;
+	//std::cout << "max = " << max << std::endl;
+
+	//// viewer
+	//pcl::visualization::CloudViewer viewer("Simple Cloud Viewer");
+	//viewer.showCloud(pHitPoints);
+	//while(!viewer.wasStopped ())
+	//{
+	//}
 
 	// surface normals
 	//pcl::PointCloud<pcl::PointNormal>::Ptr pPointNormals;
-	//smoothAndNormalEstimation(pPoints, pPointNormals);
+	//smoothAndNormalEstimation(pHitPoints, pPointNormals);
 	const float searchRadius = 0.03f;
-	pcl::PointCloud<pcl::Normal>::Ptr pNormals = estimateSurfaceNormals(pPoints, searchRadius);
+	pcl::PointCloud<pcl::Normal>::Ptr pNormals = estimateSurfaceNormals(pHitPoints, searchRadius);
 
 
 	// GPOM
 	const float mapResolution = 0.1f; // 10cm
 	const float octreeResolution = 0.02f; //10.f; 
 	GPOMType gpom;
-	gpom.build(pPoints, pNormals, mapResolution);
-	//gpom.build(pPoints, pNormals, mapResolution, octreeResolution);
+	gpom.build(pHitPoints, pNormals, pRobotPositions, mapResolution);
+	//gpom.build(pHitPoints, pNormals, mapResolution, octreeResolution);
 }
 #endif
