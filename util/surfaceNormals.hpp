@@ -10,6 +10,7 @@ namespace GPOM{
 
 	// Normal: float normal[3], curvature
 	pcl::PointCloud<pcl::Normal>::Ptr estimateSurfaceNormals(pcl::PointCloud<pcl::PointXYZ>::ConstPtr pPoints, 
+																										  const pcl::PointXYZ &sensorPosition,
 																										  const float searchRadius = 0.03f)
 	{
 		// surface normal vectors
@@ -36,6 +37,24 @@ namespace GPOM{
 		// Compute the surface normals
 		pcl::PointCloud<pcl::Normal>::Ptr pNormals(new pcl::PointCloud<pcl::Normal>);
 		ne.compute(*pNormals);
+
+		// check if n is consistently oriented towards the viewpoint and flip otherwise
+		// angle between Psensor - Phit and Normal should be less than 90 degrees
+		// dot(Psensor - Phit, Normal) > 0
+		pcl::PointCloud<pcl::PointXYZ>::const_iterator		iterPoint		= pPoints->begin();
+		pcl::PointCloud<pcl::Normal>::iterator					iterNormal	= pNormals->begin();
+		for(; (iterPoint != pPoints->end()) && (iterNormal != pNormals->end()); iterPoint++, iterNormal++)
+		{
+			if((sensorPosition.x - iterPoint->x) * iterNormal->normal_x + 
+			   (sensorPosition.y - iterPoint->y) * iterNormal->normal_y + 
+			   (sensorPosition.z - iterPoint->z) * iterNormal->normal_z < 0)
+			{
+				iterNormal->normal_x *= -1.f;
+				iterNormal->normal_y *= -1.f;
+				iterNormal->normal_z *= -1.f;
+			}
+		}
+
 		return pNormals;
 	}
 
@@ -74,8 +93,6 @@ namespace GPOM{
 		pPointNormals = mls.getOutputNormals();
 		//mls.setOutputNormals(mls_points);
 #endif
-
-		error flip to the camera position!!!
 	}
 }
 

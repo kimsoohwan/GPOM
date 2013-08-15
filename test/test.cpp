@@ -1,4 +1,4 @@
-#if 1
+#if 0
 #define BOOST_TEST_MODULE Simple testcases
 #include <boost/test/unit_test.hpp>
 
@@ -968,26 +968,46 @@ BOOST_AUTO_TEST_CASE(covMaterniso3FDI_train) {
 BOOST_AUTO_TEST_SUITE_END()
 
 #else
+#if 1
+
+#include <windows.h>						// for sleep
+#include <boost/timer/timer.hpp> // boost timer
+
+//#include <Eigen/Dense>
+//#include <Eigen/Sparse>
+
+int main()
+{
+	boost::timer::auto_cpu_timer t;
+	Sleep(1000);
+	//const int n = 1000;
+	//const int numTests = 10;
+	//for(int i = 0; i < numTests; i++)
+	//{
+
+	//}
+
+	return 0;
+}
+
+#else
 
 #include <iostream>
 #include <string>
 
 #include <pcl/io/pcd_io.h>
-#include <pcl/features/normal_3d.h>
-#include <pcl/surface/mls.h>
-#include <pcl/visualization/cloud_viewer.h>	// pcl::visualization::CloudViewer
+//#include <pcl/visualization/cloud_viewer.h>	// pcl::visualization::CloudViewer
 
-#include "GP/Mean/MeanZero.hpp"
+#include "GP/Mean/MeanZeroFDI.hpp"
 #include "GP/Cov/CovMaternisoFDI.hpp"
-#include "GP/Lik/LikGauss.hpp"
-#include "GP/Inf/InfExact.hpp"
-//#include "InfExactUnstable.hpp"
+#include "GP/Lik/LikGaussFDI.hpp"
+#include "GP/Inf/InfExactFDI.hpp"
 
 #include "util/surfaceNormals.hpp"
 #include "GPOM.hpp"
 using namespace GPOM;
 
-typedef GaussianProcessOccupancyMap<MeanZero, CovMaterniso3FDI, LikGauss, InfExact> GPOMType;
+typedef GaussianProcessOccupancyMap<MeanZeroFDI, CovMaterniso3FDI, LikGaussFDI, InfExactFDI> GPOMType;
 
 int main()
 {
@@ -1008,8 +1028,9 @@ int main()
 	}
 
 	// Point Clouds - Robot positions
+	pcl::PointXYZ		robotPosition(0.f, 0.075f, 1.0f);
 	pcl::PointCloud<pcl::PointXYZ>::Ptr pRobotPositions(new pcl::PointCloud<pcl::PointXYZ>);
-	pRobotPositions->push_back(pcl::PointXYZ(0.f, 0.075f, 1.0f));
+	pRobotPositions->push_back(robotPosition);
 
 	//// min, max
 	//pcl::PointXYZ min, max;
@@ -1028,8 +1049,7 @@ int main()
 	//pcl::PointCloud<pcl::PointNormal>::Ptr pPointNormals;
 	//smoothAndNormalEstimation(pHitPoints, pPointNormals);
 	const float searchRadius = 0.03f;
-	pcl::PointCloud<pcl::Normal>::Ptr pNormals = estimateSurfaceNormals(pHitPoints, searchRadius);
-
+	pcl::PointCloud<pcl::Normal>::Ptr pNormals = estimateSurfaceNormals(pHitPoints, robotPosition, searchRadius);
 
 	// GPOM
 	const float mapResolution = 0.1f; // 10cm
@@ -1038,4 +1058,5 @@ int main()
 	gpom.build(pHitPoints, pNormals, pRobotPositions, mapResolution);
 	//gpom.build(pHitPoints, pNormals, mapResolution, octreeResolution);
 }
+#endif
 #endif
