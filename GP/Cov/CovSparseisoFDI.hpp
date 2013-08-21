@@ -1,14 +1,14 @@
-#ifndef COVARIANCE_FUNCTION_MATERN_ISO_BETWEEN_FUNCTION_VALUE_DERIVATIVE_AND_INTEGRAL_HPP
-#define COVARIANCE_FUNCTION_MATERN_ISO_BETWEEN_FUNCTION_VALUE_DERIVATIVE_AND_INTEGRAL_HPP
+#ifndef COVARIANCE_FUNCTION_SPARSE_ISO_BETWEEN_FUNCTION_VALUE_DERIVATIVE_AND_INTEGRAL_HPP
+#define COVARIANCE_FUNCTION_SPARSE_ISO_BETWEEN_FUNCTION_VALUE_DERIVATIVE_AND_INTEGRAL_HPP
 
 #include <vector>
 
-#include "GP/Cov/CovMaterniso.hpp"
+#include "GP/Cov/CovSparseiso.hpp"
 #include "GP/util/TrainingInputSetterDerivatives.hpp"
 
 namespace GPOM{
 
-	class CovMaterniso3FDI : public CovMaterniso3, public TrainingInputSetterDerivatives
+	class CovSparseisoFDI : public CovSparseiso, public TrainingInputSetterDerivatives
 	{
 		protected:
 			// type
@@ -17,10 +17,10 @@ namespace GPOM{
 
 		public:
 			// constructor
-			CovMaterniso3FDI() { }
+			CovSparseisoFDI() { }
 
 			// destructor
-			virtual ~CovMaterniso3FDI() { }
+			virtual ~CovSparseisoFDI() { }
 
 			// setter
 		private:
@@ -205,26 +205,31 @@ namespace GPOM{
 				MatrixPtr pK_FD(new Matrix(n, m));
 
 				// hyperparameters
-				Scalar inv_ell										= exp(((Scalar) -1.f) * logHyp(0));
-				Scalar inv_ell2									= exp(((Scalar) -2.f) * logHyp(0));
-				Scalar neg_sqrt3_inv_ell					=  -SQRT3 * inv_ell;
+				Scalar inv_ell							= exp(((Scalar)  -1.f) * logHyp(0));
+				Scalar inv_ell2						= exp(((Scalar)  -2.f) * logHyp(0));
+				Scalar sigma_f2					= exp(((Scalar)  2.f) * logHyp(1));
 
-				Scalar three_sigma_f2_inv_ell2		= ((Scalar)  3.f) * exp(((Scalar)  2.f) * logHyp(1)) * inv_ell2;
-				Scalar six_sigma_f2_inv_ell2			= ((Scalar)  2.f) * three_sigma_f2_inv_ell2;
+				Scalar inv_three					= ((Scalar) 1.f)/((Scalar) 3.f);
+				Scalar inv_two_pi					= ((Scalar) 1.f)/TWO_PI;
+				Scalar two_three					= ((Scalar) 2.f) * inv_three;
+				Scalar neg_two_three			= - two_three;
 
-				// pre-compute negR = - sqrt(3) * r / ell
-				Matrix negR(n, m);
-				negR.noalias() = neg_sqrt3_inv_ell * (*pDist);
+				// R, 2*pi*R
+				MatrixPtr pR(new Matrix(n, m));
+				MatrixPtr pTwoPiR(new Matrix(n, m));
+				(*pR).noalias() = inv_ell * (*pDist);
+				(*pTwoPiR).noalias() = TWO_PI * (*pR);
 
-	#if 1
 				// mode
 				switch(pdIndex)
 				{
 				// derivatives of covariance matrix w.r.t log ell
 				case 0:
 					{
-						// k_log(ell)	 = 3 * sigma_f^2 * ((x_i - x_i') / ell^2) * (sqrt(3) * r / ell  - 2) * exp(-sqrt(3) * r / ell)
-						(*pK_FD) = three_sigma_f2_inv_ell2 * pDelta->array() * (((Scalar) -2.f) - negR.array()) * negR.array().exp();
+						// k_log(ell)	 = [(x_j - x'_j)/ (l^2 r)] * (pK_pR + r * p2K_p2R);
+						(*pK_FD).noalias() = (inv_ell2 * (pDelta->array() / pR->array())
+															* (two_three * sigma_f2 * (pTwoPiR->array().cos() - PI * (pTwoPiR->array().sin()) * (((Scalar) 1.f) - pR->array()) - ((Scalar) 1.f))
+																+ (pR->array()) * (neg_two_three * PI * sigma_f2) * (pTwoPiR->array().sin() + TWO_PI * (pTwoPiR->array().cos()) * (((Scalar) 1.f) - pR->array())))).matrix();
 						//std::cout << "K_FD_log(ell) = " << std::endl << *pK_FD << std::endl << std::endl;
 						break;
 					}
@@ -232,8 +237,8 @@ namespace GPOM{
 				// derivatives of covariance matrix w.r.t log sigma_f
 				case 1:
 					{
-						// k(X, X') = 6 * sigma_f^2 * ((x_i - x_i') / ell^2) * exp(-sqrt(3) * r / ell)
-						(*pK_FD) = six_sigma_f2_inv_ell2 * pDelta->array() * negR.array().exp();
+						(*pK_FD).noalias() = ((Scalar) 2.f) * ((-inv_ell2 * (pDelta->array() / pR->array())) 
+															* two_three * sigma_f2 * (pTwoPiR->array().cos() - PI * pTwoPiR->array().sin() * (((Scalar) 1.f) - pR->array()) - ((Scalar) 1.f))).matrix();
 						//std::cout << "K_FD_log(sigma_f) = " << std::endl << *pK_FD << std::endl << std::endl;
 						break;
 					}
@@ -241,19 +246,20 @@ namespace GPOM{
 				// covariance matrix
 				default:
 					{
-						// k(X, X') = 3 * sigma_f^2 * ((x_i - x_i') / ell^2) * exp(-sqrt(3) * r / ell)
-						(*pK_FD) = three_sigma_f2_inv_ell2 * pDelta->array() * negR.array().exp();
+						// k(X, X') = -[(x_j - x'_j)/ (l^2 r)] * pK_pR;
+						(*pK_FD).noalias() = ((-inv_ell2 * (pDelta->array() / pR->array())) 
+															* two_three * sigma_f2 * (pTwoPiR->array().cos() - PI * pTwoPiR->array().sin() * (((Scalar) 1.f) - pR->array()) - ((Scalar) 1.f))).matrix();
 						//std::cout << "K_FD = " << std::endl << *pK_FD << std::endl << std::endl;
 						break;
 					}
 				}
-	#else
-				// k(X, X') = 3 * sigma_f^2 * ((x_i - x_i') / ell^2) * exp(-sqrt(3) * r / ell)
-				(*pK_FD) = three_sigma_f2_inv_ell2 * pDelta->array() * negR.array().exp();
 
-				if(pdIndex == 0) (*pK_FD) = pK_FD->array() * (((Scalar) -2.f) - negR.array());
-				if(pdIndex == 1) (*pK_FD) = ((Scalar) 2.f) * (*pK_FD);
-	#endif
+				// avoiding division by zero
+				for(int row = 0; row < n; row++)  
+					for(int col = 0; col < m; col++)   
+						if((*pR)(row, col) >= (Scalar) 1.f || (*pDist)(row, col) < EPSILON)		(*pK_FD)(row, col) = (Scalar) 0.f;
+
+				//std::cout << "K_FD = " << std::endl << *pK_FD << std::endl << std::endl;
 
 				return pK_FD;
 			}
@@ -285,46 +291,40 @@ namespace GPOM{
 				MatrixPtr pK_DD(new Matrix(n, m));
 
 				// hyperparameters
-				Scalar inv_ell										= exp(((Scalar) -1.f) * logHyp(0));
-				Scalar inv_ell2									= exp(((Scalar) -2.f) * logHyp(0));
-				Scalar neg_sqrt3_inv_ell					= -SQRT3 * inv_ell;
-				Scalar three_inv_ell2						= ((Scalar) 3.f) * inv_ell2;
-				Scalar nine_inv_ell2							= ((Scalar) 9.f) * inv_ell2;
+				Scalar ell								= exp(logHyp(0));
+				Scalar inv_ell							= exp(((Scalar)  -1.f) * logHyp(0));
+				Scalar inv_ell2						= exp(((Scalar)  -2.f) * logHyp(0));
+				Scalar sigma_f2					= exp(((Scalar)  2.f) * logHyp(1));
 
-				Scalar three_sigma_f2_inv_ell2		= ((Scalar) 3.f) * exp(((Scalar) 2.f) * logHyp(1)) * inv_ell2;
-				Scalar six_sigma_f2_inv_ell2			= ((Scalar) 2.f) * three_sigma_f2_inv_ell2;
+				Scalar inv_three					= ((Scalar) 1.f)/((Scalar) 3.f);
+				Scalar inv_two_pi					= ((Scalar) 1.f)/TWO_PI;
+				Scalar two_three					= ((Scalar) 2.f) * inv_three;
+				Scalar neg_two_three			= - two_three;
+				Scalar eight_three					= ((Scalar) 8.f) * inv_three;
+
+				// R, 2*pi*R
+				MatrixPtr pR(new Matrix(n, m));
+				MatrixPtr pTwoPiR(new Matrix(n, m));
+				(*pR).noalias() = inv_ell * (*pDist);
+				(*pTwoPiR).noalias() = TWO_PI * (*pR);
 
 				// delta
 				Scalar delta = (i == j) ? (Scalar) 1.f  : (Scalar) 0.f;
 
-				// pre-compute negR = - sqrt(3) * r / ell
-				Matrix negR(n, m);
-				negR.noalias() = neg_sqrt3_inv_ell * (*pDist);
-
-				// avoiding division by zero
-				//// make the distance always greater than eps
-				//for(int row = 0; row < n; row++)
-				//	for(int col = 0; col < m; col++)
-				//		if(negR(row, col) > - EPSILON)		negR(row, col) = - EPSILON;
-				//std::cout << "Dist  = " << std::endl << *pDist << std::endl << std::endl;
-				//std::cout << "-R  = " << std::endl << negR << std::endl << std::endl;
-
-	#if 1
 				// mode
 				switch(pdIndex)
 				{
 				// derivatives of covariance matrix w.r.t log ell
 				case 0:
 					{
-						// k_log(ell)	 = 3 * sigma_f^2 * [ (-2*delta / ell^2 + 9* (ell / (sqrt(3) * r)) * ((x_i - x_i') / ell^2) * ((x_j - x_j') / ell^2) 
-						//                                                    +(delta / ell^2 - 3 * (ell / (sqrt(3) * r)) * ((x_i - x_i') / ell^2) * ((x_j - x_j') / ell^2)) * (sqrt(3) * r / ell) ] * exp(- sqrt(3) * r / ell)
-						//                   = (3 * sigma_f^2 / ell^2) * [ (-2*delta + (9 / ell^2) (x_i - x_i') * (x_j - x_j') / (sqrt(3) * r / ell)) 
-						//                                                                 +(delta/ (sqrt(3) * r / ell)  - (3 / ell^2) * (x_i - x_i') * (x_j - x_j')) ] * exp(- sqrt(3) * r / ell)
-						(*pK_DD) = three_sigma_f2_inv_ell2 * (((Scalar) -2.f) * delta - nine_inv_ell2 * (pDelta1->array()) * (pDelta2->array()) / negR.array()
-																							- delta * negR.array() - three_inv_ell2 * (pDelta1->array()) * (pDelta2->array())) * negR.array().exp();
-
-						// make the distance always greater than eps
-						for(int row = 0; row < n; row++)   for(int col = 0; col < m; col++)  if(negR(row, col) > - EPSILON)		(*pK_DD)(row, col) = three_sigma_f2_inv_ell2 * ((Scalar) -2.f) * delta;
+						// k_log(ell)	 = (delta(i, j) / (l^2r) - [(x_i - x'_i)/ (l^2 r)] * [(x_j - x'_j)/ (l^2 r)] / r) * (pK_pR + r * p2K_p2R)
+						//                     +[(x_i - x'_i)/ (l^2 r)] * [(x_j - x'_j)/ (l^2 r)] * (2* p2K_p2R + r * p3K_p3R)
+						(*pK_DD).noalias() = ((delta * inv_ell2 / pR->array() - inv_ell2 * inv_ell2 * (pDelta1->array()) * (pDelta2->array()) / pR->array().cube())
+															  * (two_three * sigma_f2 * (pTwoPiR->array().cos() - PI * (pTwoPiR->array().sin()) * (((Scalar) 1.f) - pR->array()) - ((Scalar) 1.f))
+																  + pR->array() * (neg_two_three * PI * sigma_f2) * (pTwoPiR->array().sin() + TWO_PI * (pTwoPiR->array().cos()) * (((Scalar) 1.f) - pR->array())))
+														  + (inv_ell2 * inv_ell2 * (pDelta1->array()) * (pDelta2->array()) / pR->array().square())
+															 * (((Scalar) 2.f) * (neg_two_three * PI * sigma_f2) * (pTwoPiR->array().sin() + TWO_PI * (pTwoPiR->array().cos()) * (((Scalar) 1.f) - pR->array()))
+																  + pR->array() * (eight_three * pow(PI, (Scalar) 3.f) * sigma_f2) * (pTwoPiR->array().sin() * (((Scalar) 1.f) - pR->array())))).matrix();
 						//std::cout << "K_DD_log(ell) = " << std::endl << *pK_DD << std::endl << std::endl;
 						break;
 					}
@@ -332,12 +332,10 @@ namespace GPOM{
 				// derivatives of covariance matrix w.r.t log sigma_f
 				case 1:
 					{
-						// k_log(sigma_f) = 6 * sigma_f^2 * [ delta / ell^2 -3 * (ell / (sqrt(3) * r)) * ((x_i - x_i') / ell^2) * ((x_j - x_j') / ell^2) ] * exp(- sqrt(3) * r / ell)
-						//                            = (6 * sigma_f^2 / ell^2) * [ delta - (3 / ell^2) *  (x_i - x_i') * (x_j - x_j') / (sqrt(3) * r / ell)  ] * exp(- sqrt(3) * r / ell)
-						(*pK_DD) = six_sigma_f2_inv_ell2 * (delta + three_inv_ell2 * (pDelta1->array()) * (pDelta2->array()) / negR.array()) * negR.array().exp();
-
-						// make the distance always greater than eps
-						for(int row = 0; row < n; row++)   for(int col = 0; col < m; col++)   if(negR(row, col) > - EPSILON)   (*pK_DD)(row, col) = six_sigma_f2_inv_ell2 * delta;
+						(*pK_DD).noalias() = ((Scalar) 2.f) * ((((inv_ell2 * inv_ell2 * (pDelta1->array()) * (pDelta2->array()) / pR->array().cube()) - delta * inv_ell2 / pR->array())
+                                                                         * (two_three * sigma_f2 * (pTwoPiR->array().cos() - PI * pTwoPiR->array().sin() * (((Scalar) 1.f) - pR->array()) - ((Scalar) 1.f)))
+							                                           - (inv_ell2 * inv_ell2 * (pDelta1->array()) * (pDelta2->array()) / pR->array().square())
+										                                 * (neg_two_three * PI * sigma_f2) * (pTwoPiR->array().sin() + TWO_PI * (pTwoPiR->array().cos()) * (((Scalar) 1.f) - pR->array())))).matrix();
 						//std::cout << "K_DD_log(sigma_f) = " << std::endl << *pK_DD << std::endl << std::endl;
 						break;
 					}
@@ -345,38 +343,23 @@ namespace GPOM{
 				// covariance matrix
 				default:
 					{
-						// k(X, X') = 3 * sigma_f^2 * [ delta / ell^2 -3 * (ell / (sqrt(3) * r)) * ((x_i - x_i') / ell^2) * ((x_j - x_j') / ell^2) ] * exp(- sqrt(3) * r / ell)
-						//               = (3 * sigma_f^2 / ell^2) * [ delta - (3 / ell^2) *  (x_i - x_i') * (x_j - x_j') / (sqrt(3) * r / ell)  ] * exp(- sqrt(3) * r / ell)
-						(*pK_DD) = three_sigma_f2_inv_ell2 * (delta + three_inv_ell2 * (pDelta1->array()) * (pDelta2->array()) / negR.array()) * negR.array().exp();
-
-						// make the distance always greater than eps
-						for(int row = 0; row < n; row++)   for(int col = 0; col < m; col++)   if(negR(row, col) > - EPSILON)		(*pK_DD)(row, col) = three_sigma_f2_inv_ell2 * delta;
+						// k(X, X') = ([(x_i - x'_i)/ (l^2 r)] * [(x_j - x'_j)/ (l^2 r)] / r  - delta(i, j) / (l^2r)) * pK_pR
+						//                  -[(x_i - x'_i)/ (l^2 r)] * [(x_j - x'_j)/ (l^2 r)] * p2K_p2R
+						(*pK_DD).noalias() = (((inv_ell2 * inv_ell2 * (pDelta1->array()) * (pDelta2->array()) / pR->array().cube()) - delta * inv_ell2 / pR->array())
+                                              * (two_three * sigma_f2 * (pTwoPiR->array().cos() - PI * pTwoPiR->array().sin() * (((Scalar) 1.f) - pR->array()) - ((Scalar) 1.f)))
+							               - (inv_ell2 * inv_ell2 * (pDelta1->array()) * (pDelta2->array()) / pR->array().square())
+										     * (neg_two_three * PI * sigma_f2) * (pTwoPiR->array().sin() + TWO_PI * (pTwoPiR->array().cos()) * (((Scalar) 1.f) - pR->array()))).matrix();
 						//std::cout << "K_DD = " << std::endl << *pK_DD << std::endl << std::endl;
 						break;
 					}
 				}
-	#else
-				// simplified version
 
-				// for all cases
-				(*pK_DD) = three_sigma_f2_inv_ell2 * (delta + three_inv_ell2 * (pDelta1->array()) * (pDelta2->array()) / negR.array()) * negR.array().exp();
+				// avoiding division by zero
+				for(int row = 0; row < n; row++)  
+					for(int col = 0; col < m; col++)   
+						if((*pR)(row, col) >= (Scalar) 1.f || (*pDist)(row, col) < EPSILON)		(*pK_DD)(row, col) = (Scalar) 0.f;
 
-				// make the distance always greater than eps
-				for(int row = 0; row < n; row++)   for(int col = 0; col < m; col++)   if(negR(row, col) > - EPSILON)   (*pK_DD)(row, col) = three_sigma_f2_inv_ell2 * delta;
-
-				// particularly, derivatives of covariance matrix w.r.t log ell
-				if(pdIndex == 0)
-				{
-					(*pK_DD) = pK_DD->cwiseProduct(- negR) 
-																  + three_sigma_f2_inv_ell2 * (((Scalar) -2.f) * delta - nine_inv_ell2 * (pDelta1->array()) * (pDelta2->array()) / negR.array()) * negR.array().exp();
-
-					// make the distance always greater than eps
-					for(int row = 0; row < n; row++)   for(int col = 0; col < m; col++)   if(negR(row, col) > - EPSILON)   (*pK_DD)(row, col) = three_sigma_f2_inv_ell2 * ((Scalar) -2.f) * delta;
-				}
-
-				// particularly, derivatives of covariance matrix w.r.t log sigma_f
-				if(pdIndex == 1)		(*pK_DD) *= (Scalar) 2.f;
-	#endif
+				//std::cout << "K_DD = " << std::endl << *pK_DD << std::endl << std::endl;
 
 				return pK_DD;
 			}

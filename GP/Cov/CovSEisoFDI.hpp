@@ -48,17 +48,17 @@ namespace GPOM{
 			virtual int	getN() const { return m_nd*(m_d+1)+m_n; }
 
 			// operator
-			MatrixPtr operator()(HypConstPtr pLogHyp, const int pdIndex = -1)
+			MatrixPtr operator()(const Hyp &logHyp, const int pdIndex = -1)
 			{
-				return K(pLogHyp, pdIndex);
+				return K(logHyp, pdIndex);
 			}
 
 			// self covariance
-			MatrixPtr K(HypConstPtr pLogHyp, const int pdIndex = -1)
+			MatrixPtr K(const Hyp &logHyp, const int pdIndex = -1)
 			{
 				// input
 				// pX (nxd): training inputs
-				// pLogHyp: log hyperparameters
+				// logHyp: log hyperparameters
 				// pdIndex: partial derivatives with respect to this parameter index
 
 				// output
@@ -97,10 +97,10 @@ namespace GPOM{
 						if(row == 0)
 						{
 							// F1F1
-							if(col == 0)	pK->block(startingRow, startingCol, m_nd, m_nd) = *(K_FF(m_pSqDistList[0], pLogHyp, pdIndex));
+							if(col == 0)	pK->block(startingRow, startingCol, m_nd, m_nd) = *(K_FF(m_pSqDistList[0], logHyp, pdIndex));
 
 							// F1D*
-							else				pK->block(startingRow, startingCol, m_nd, m_nd) = *(K_FD(m_pSqDistList[0], m_pDeltaListList[0][col-1], pLogHyp, pdIndex));
+							else				pK->block(startingRow, startingCol, m_nd, m_nd) = *(K_FD(m_pSqDistList[0], m_pDeltaListList[0][col-1], logHyp, pdIndex));
 						}
 						else
 						{
@@ -108,7 +108,7 @@ namespace GPOM{
 												pK->block(startingRow, startingCol, m_nd, m_nd) = *(K_DD(m_pSqDistList[0], 
 																																			 m_pDeltaListList[0][row-1],		row-1, 
 																																			 m_pDeltaListList[0][col-1],		col-1,
-																																			 pLogHyp, pdIndex));
+																																			 logHyp, pdIndex));
 						}
 
 						// copy its transpose
@@ -116,27 +116,27 @@ namespace GPOM{
 					}
 
 					// F1F2
-					if(row == 0)		pK->block(startingRow, m_nd*(m_d+1), m_nd, m_n) = *(K_FF(m_pSqDistList[1], pLogHyp, pdIndex));
+					if(row == 0)		pK->block(startingRow, m_nd*(m_d+1), m_nd, m_n) = *(K_FF(m_pSqDistList[1], logHyp, pdIndex));
 
 					// D*F2
-					else					pK->block(startingRow, m_nd*(m_d+1), m_nd, m_n) = ((Scalar) -1.f) * (*(K_FD(m_pSqDistList[1], m_pDeltaListList[1][row-1], pLogHyp, pdIndex)));
+					else					pK->block(startingRow, m_nd*(m_d+1), m_nd, m_n) = ((Scalar) -1.f) * (*(K_FD(m_pSqDistList[1], m_pDeltaListList[1][row-1], logHyp, pdIndex)));
 
 					// copy its transpose
 					pK->block(m_nd*(m_d+1), startingRow, m_n, m_nd).noalias() = pK->block(startingRow, m_nd*(m_d+1), m_nd, m_n).transpose();
 				}
 
 				// F2F2
-				pK->block(m_nd*(m_d+1), m_nd*(m_d+1), m_n, m_n) = *(K_FF(m_pSqDistList[2], pLogHyp, pdIndex));
+				pK->block(m_nd*(m_d+1), m_nd*(m_d+1), m_n, m_n) = *(K_FF(m_pSqDistList[2], logHyp, pdIndex));
 
 				return pK;
 			}
 
 			// cross covariance
-			MatrixPtr Ks(MatrixConstPtr pXs, HypConstPtr pLogHyp) const
+			MatrixPtr Ks(MatrixConstPtr pXs, const Hyp &logHyp) const
 			{
 				// input
 				// pXs (m x d): test inputs
-				// pLogHyp: log hyperparameters
+				// logHyp: log hyperparameters
 
 				// output
 				// K: (nd*(d+1) + n) x m
@@ -171,14 +171,14 @@ namespace GPOM{
 				MatrixPtr pKs(new Matrix(n, m)); // (nd*(d+1) + n) x m
 
 				// F1F
-				pKs->block(0, 0, m_nd, m) = *(K_FF(pSqDist1, pLogHyp));
+				pKs->block(0, 0, m_nd, m) = *(K_FF(pSqDist1, logHyp));
 
 				// D1F, D2F, D3F
 				for(int row = 1; row <= m_d; row++)
-					pKs->block(m_nd*row, 0, m_nd, m) = ((Scalar) -1.f) * (*(K_FD(pSqDist1, deltaList[row-1], pLogHyp)));
+					pKs->block(m_nd*row, 0, m_nd, m) = ((Scalar) -1.f) * (*(K_FD(pSqDist1, deltaList[row-1], logHyp)));
 
 				// F2F
-				pKs->block(m_nd*(m_d+1), 0, m_n, m) = *(K_FF(pSqDist2, pLogHyp));
+				pKs->block(m_nd*(m_d+1), 0, m_n, m) = *(K_FF(pSqDist2, logHyp));
 
 				return pKs;
 			}
@@ -187,12 +187,12 @@ namespace GPOM{
 
 		protected:
 			// covariance matrix given pair-wise sqaured distances
-			MatrixPtr K_FD(MatrixConstPtr pSqDist, MatrixConstPtr pDelta, HypConstPtr pLogHyp, const int pdIndex = -1) const
+			MatrixPtr K_FD(MatrixConstPtr pSqDist, MatrixConstPtr pDelta, const Hyp &logHyp, const int pdIndex = -1) const
 			{
 				// input
 				// pSqDist (nxm): squared distances = r^2
 				// pDelta (nxm): delta = x_i - x_i'
-				// pLogHyp: log hyperparameters
+				// logHyp: log hyperparameters
 				// pdIndex: partial derivatives with respect to this parameter index
 
 				// output
@@ -202,10 +202,10 @@ namespace GPOM{
 
 				assert(pdIndex < 2);
 
-				MatrixPtr pK_FD = K_FF(pSqDist, pLogHyp, pdIndex);
+				MatrixPtr pK_FD = K_FF(pSqDist, logHyp, pdIndex);
 
 				// hyperparameters
-				Scalar inv_ell2 = exp(((Scalar) -2.f) * (*pLogHyp)(0));
+				Scalar inv_ell2 = exp(((Scalar) -2.f) * logHyp(0));
 
 				// mode
 				switch(pdIndex)
@@ -214,7 +214,7 @@ namespace GPOM{
 				case 0:
 					{
 						// k_log(ell)	 = ((x_i - x_i') / ell^2) * (K_FF_log(ell) - 2K_FF)
-						MatrixPtr pK_FF = K_FF(pSqDist, pLogHyp); // K_FF
+						MatrixPtr pK_FF = K_FF(pSqDist, logHyp); // K_FF
 						(*pK_FD) = inv_ell2 * pDelta->cwiseProduct(*pK_FD - (((Scalar) 2.f) * (*pK_FF)));
 						//std::cout << "K_FD_log(ell) = " << std::endl << *pK_FD << std::endl << std::endl;
 						break;
@@ -246,7 +246,7 @@ namespace GPOM{
 			MatrixPtr K_DD(MatrixConstPtr pSqDist, 
 										 MatrixConstPtr pDelta1, const int i, 
 										 MatrixConstPtr pDelta2, const int j,
-										 HypConstPtr pLogHyp, const int pdIndex = -1) const
+										 const Hyp &logHyp, const int pdIndex = -1) const
 			{
 				// input
 				// pSqDist (nxm): squared distances = r^2
@@ -254,7 +254,7 @@ namespace GPOM{
 				// i: index for delta1
 				// pDelta2 (nxm): delta = x_j - x_j'
 				// j: index for delta2
-				// pLogHyp: log hyperparameters
+				// logHyp: log hyperparameters
 				// pdIndex: partial derivatives with respect to this parameter index
 
 				// output
@@ -264,11 +264,11 @@ namespace GPOM{
 
 				assert(pdIndex < 2);
 
-				MatrixPtr pK_DD = K_FF(pSqDist, pLogHyp, pdIndex);
+				MatrixPtr pK_DD = K_FF(pSqDist, logHyp, pdIndex);
 
 				// hyperparameters
-				Scalar inv_ell2				= exp(((Scalar) -2.f) * (*pLogHyp)(0));
-				Scalar inv_ell4				= exp(((Scalar) -4.f) * (*pLogHyp)(0));
+				Scalar inv_ell2				= exp(((Scalar) -2.f) * logHyp(0));
+				Scalar inv_ell4				= exp(((Scalar) -4.f) * logHyp(0));
 				Scalar neg2_inv_ell2	= ((Scalar) -2.f) * inv_ell2;
 				Scalar four_inv_ell4		= ((Scalar) 4.f) * inv_ell4;
 
@@ -284,7 +284,7 @@ namespace GPOM{
 					{
 						// k_log(ell)	 = [ -2*delta / ell^2 + 4*((x_i - x_i')*(x_j - x_j') / ell^4) ] * K_FF(X, X')
 						//                   + [ delta / ell^2 - ((x_i - x_i')*(x_j - x_j') / ell^4) ] * K_FF_log(ell)(X, X')
-						MatrixPtr pK_FF = K_FF(pSqDist, pLogHyp); // K_FF
+						MatrixPtr pK_FF = K_FF(pSqDist, logHyp); // K_FF
 						(*pK_DD) = (neg2_inv_ell2*delta + four_inv_ell4*(pDelta1->array())*(pDelta2->array())) * pK_FF->array()
 										  + (inv_ell2*delta - inv_ell4*(pDelta1->array())*(pDelta2->array())) * pK_DD->array();
 						//std::cout << "K_DD_log(ell) = " << std::endl << *pK_DD << std::endl << std::endl;
@@ -317,8 +317,8 @@ namespace GPOM{
 
 				// particularly, derivatives of covariance matrix w.r.t log ell
 				if(pdIndex == 0)
-					(*pK_DD) += (neg2_inv_ell2*delta + four_inv_ell4*(pDelta1->array())*(pDelta2->array())).matrix().cwiseProduct(*(K_FF(pSqDist, pLogHyp)));
-					//(*pK_DD) += (neg2_inv_ell2*delta + four_inv_ell4*(pDelta1->array())*(pDelta2->array())) * (K_FF(pSqDist, pLogHyp)->array());
+					(*pK_DD) += (neg2_inv_ell2*delta + four_inv_ell4*(pDelta1->array())*(pDelta2->array())).matrix().cwiseProduct(*(K_FF(pSqDist, logHyp)));
+					//(*pK_DD) += (neg2_inv_ell2*delta + four_inv_ell4*(pDelta1->array())*(pDelta2->array())) * (K_FF(pSqDist, logHyp)->array());
 	#endif
 
 				return pK_DD;

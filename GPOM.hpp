@@ -84,20 +84,20 @@ public:
 		m_gp.setTrainingData(pXd, pX, pY);
 
 		// hyperparameters
-		MeanFunc::HypPtr		pMeanLogHyp(new MeanFunc::Hyp());
-		CovFunc::HypPtr			pCovLogHyp(new CovFunc::Hyp());
-		LikFunc::HypPtr				pLikLogHyp(new LikFunc::Hyp());
+		MeanFunc::Hyp		meanLogHyp;
+		CovFunc::Hyp		covLogHyp;
+		LikFunc::Hyp			likLogHyp;
 
 		// default values
-		(*pCovLogHyp) << log(1.f), log(1.f);
-		(*pLikLogHyp) << log(1.f), log(1.f);
+		covLogHyp << log(1.f), log(1.f);
+		likLogHyp << log(1.f), log(1.f);
 
 		// train
-		m_gp.train<BFGS, DeltaFunc>(pMeanLogHyp, pCovLogHyp, pLikLogHyp, 10);
+		m_gp.train<BFGS, DeltaFunc>(meanLogHyp, covLogHyp, likLogHyp, 10);
 
-		std::cout << "Mean: " << std::endl << pMeanLogHyp->array().exp().matrix() << std::endl;
-		std::cout << "Cov: " << std::endl << pCovLogHyp->array().exp().matrix() << std::endl;
-		std::cout << "Lik: " << std::endl << pLikLogHyp->array().exp().matrix() << std::endl;
+		std::cout << "Mean: " << std::endl << meanLogHyp << std::endl;
+		std::cout << "Cov: " << std::endl << covLogHyp << std::endl;
+		std::cout << "Lik: " << std::endl << likLogHyp << std::endl;
 
 		// test points
 

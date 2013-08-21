@@ -12,16 +12,8 @@ namespace GPOM{
 	{
 	public:
 		typedef	typename MeanFunc::Hyp						MeanHyp;
-		typedef	typename MeanFunc::HypPtr					MeanHypPtr;
-		typedef	typename MeanFunc::HypConstPtr		MeanHypConstPtr;
-
 		typedef	typename CovFunc::Hyp							CovHyp;
-		typedef	typename CovFunc::HypPtr						CovHypPtr;
-		typedef	typename CovFunc::HypConstPtr			CovHypConstPtr;
-
 		typedef	typename LikFunc::Hyp							LikHyp;
-		typedef	typename LikFunc::HypPtr						LikHypPtr;
-		typedef	typename LikFunc::HypConstPtr				LikHypConstPtr;
 		
 	public:
 		// constructor
@@ -42,15 +34,15 @@ namespace GPOM{
 		}
 
 		// prediction
-		void predict(MeanHypConstPtr			pMeanLogHyp, 
-							 CovHypConstPtr				pCovLogHyp, 
-							 LikHypConstPtr				pLikCovLogHyp, 
+		void predict(const MeanHyp				&meanLogHyp, 
+							 const CovHyp					&covLogHyp, 
+							 const LikHyp						&likCovLogHyp, 
 							 MatrixConstPtr					pXs, 
 							 VectorPtr							&pMu, 
 							 MatrixPtr							&pSigma, 
 							 bool									fVarianceVector = true)
 		{
-			m_InfMethod.predict(pMeanLogHyp, pCovLogHyp, pLikCovLogHyp, pXs, 
+			m_InfMethod.predict(meanLogHyp, covLogHyp, likCovLogHyp, pXs, 
 												 pMu, pSigma, fVarianceVector);
 		}
 
@@ -59,29 +51,29 @@ namespace GPOM{
 		// [0]: calculate both nlZ and pDnlZ
 		// [+]: calculate nlZ only
 		// [-]: calculate pDnlZ only
-		void negativeLogMarginalLikelihood(MeanHypConstPtr			pMeanLogHyp, 
-																		CovHypConstPtr			pCovLogHyp, 
-																		LikHypConstPtr				pLikCovLogHyp, 
+		void negativeLogMarginalLikelihood(const MeanHyp				&meanLogHyp, 
+																		const CovHyp				&covLogHyp, 
+																		const LikHyp					&likCovLogHyp, 
 																		Scalar								&nlZ, 
 																		VectorPtr						&pDnlZ,
 																		const int							calculationMode = 0)
 		{
-			m_InfMethod.negativeLogMarginalLikelihood(pMeanLogHyp, pCovLogHyp, pLikCovLogHyp, 
+			m_InfMethod.negativeLogMarginalLikelihood(meanLogHyp, covLogHyp, likCovLogHyp, 
 																						   nlZ, pDnlZ,
 																						   calculationMode);
 		}
 
 		// train hyperparameters
 		template<class SearchStrategy, class StoppingStrategy>
-		void train(MeanHypPtr				pMeanLogHyp, 
-						 CovHypPtr					pCovLogHyp, 
-						 LikHypPtr					pLikCovLogHyp,
-						 const int						maxIter = 0,
-						 const double				minValue = 1e-7)
+		void train(MeanHyp						&meanLogHyp, 
+						 CovHyp							&covLogHyp, 
+						 LikHyp							&likCovLogHyp, 
+						 const int							maxIter = 0,
+						 const double					minValue = 1e-7)
 		{
 			Trainer<MeanFunc, CovFunc, LikFunc, InfMethod> trainer;
 			trainer.train<SearchStrategy, StoppingStrategy>(*this, 
-																								pMeanLogHyp, pCovLogHyp, pLikCovLogHyp, maxIter, minValue);
+																								meanLogHyp, covLogHyp, likCovLogHyp, maxIter, minValue);
 		}
 
 	protected:

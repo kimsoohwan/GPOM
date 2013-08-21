@@ -12,8 +12,6 @@ namespace GPOM{
 	public:
 		// hyperparameters
 		typedef	Eigen::Matrix<Scalar, 1, 1>							Hyp;
-		typedef	boost::shared_ptr<Hyp>								HypPtr;
-		typedef	boost::shared_ptr<const Hyp>					HypConstPtr;
 
 	public:
 		// constructor
@@ -27,7 +25,7 @@ namespace GPOM{
 		}
 
 		// diagonal vector
-		VectorPtr operator()(HypConstPtr pLogHyp, const int pdIndex = -1) const
+		VectorPtr operator()(const Hyp &logHyp, const int pdIndex = -1) const
 		{
 			assert(pdIndex < 1);
 
@@ -36,16 +34,16 @@ namespace GPOM{
 			VectorPtr pD(new Vector(n));
 
 			// derivatives w.r.t sn
-			if(pdIndex == 0)				pD->fill(((Scalar) 2.f) * exp((Scalar) 2.f * (*pLogHyp)(0)));
+			if(pdIndex == 0)				pD->fill(((Scalar) 2.f) * exp((Scalar) 2.f * logHyp(0)));
 
 			// likelihood
-			else									pD->fill(exp((Scalar) 2.f * (*pLogHyp)(0)));
+			else									pD->fill(exp((Scalar) 2.f * logHyp(0)));
 
 			return pD;
 		}
 
 		//// diagonal matrix
-		//MatrixPtr operator()(MatrixConstPtr pX, HypConstPtr pLogHyp, const int pdIndex = -1) const
+		//MatrixPtr operator()(MatrixConstPtr pX, const Hyp &logHyp, const int pdIndex = -1) const
 		//{
 		//	// number of training data
 		//	const int n = getN();
@@ -53,10 +51,10 @@ namespace GPOM{
 		//	pD->setZero();
 
 		//	// derivatives w.r.t sn
-		//	if(pdIndex == 0)			pD->diagonal().fill(((Scalar) 2.f) * exp((Scalar) 2.f * (*pLogHyp)(0)));
+		//	if(pdIndex == 0)			pD->diagonal().fill(((Scalar) 2.f) * exp((Scalar) 2.f * logHyp(0)));
 
 		//	// likelihood
-		//	else								pD->diagonal().fill(exp((Scalar) 2.f * (*pLogHyp)(0)));
+		//	else								pD->diagonal().fill(exp((Scalar) 2.f * logHyp(0)));
 
 		//	return pD;
 		//}

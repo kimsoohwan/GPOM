@@ -10,19 +10,6 @@ namespace GPOM{
 	class InfExactFDI : public InfExact<MeanFunc, CovFunc, LikFunc>, public TrainingInputSetterDerivatives
 	{
 		public:
-			typedef	typename MeanFunc::Hyp						MeanHyp;
-			typedef	typename MeanFunc::HypPtr					MeanHypPtr;
-			typedef	typename MeanFunc::HypConstPtr		MeanHypConstPtr;
-
-			typedef	typename CovFunc::Hyp							CovHyp;
-			typedef	typename CovFunc::HypPtr						CovHypPtr;
-			typedef	typename CovFunc::HypConstPtr			CovHypConstPtr;
-
-			typedef	typename LikFunc::Hyp							LikHyp;
-			typedef	typename LikFunc::HypPtr						LikHypPtr;
-			typedef	typename LikFunc::HypConstPtr				LikHypConstPtr;
-
-		public:
 			// constructor
 			InfExactFDI() { }
 

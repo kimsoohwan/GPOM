@@ -11,8 +11,6 @@ namespace GPOM{
 		public:
 			// hyperparameters
 			typedef	Eigen::Matrix<Scalar, 2, 1>							Hyp;						// ell, sigma_f
-			typedef	boost::shared_ptr<Hyp>								HypPtr;
-			typedef	boost::shared_ptr<const Hyp>					HypConstPtr;
 
 		public:
 			// constructor
@@ -34,33 +32,33 @@ namespace GPOM{
 			}
 
 			// operator
-			MatrixPtr operator()(HypConstPtr pLogHyp, const int pdIndex = -1)
+			MatrixPtr operator()(const Hyp &logHyp, const int pdIndex = -1)
 			{
-				return K(pLogHyp, pdIndex);
+				return K(logHyp, pdIndex);
 			}
 
 			// self covariance
-			MatrixPtr K(HypConstPtr pLogHyp, const int pdIndex = -1)
+			MatrixPtr K(const Hyp &logHyp, const int pdIndex = -1)
 			{
 				// input
 				// pX (nxd): training inputs
-				// pLogHyp: log hyperparameters
+				// logHyp: log hyperparameters
 				// pdIndex: partial derivatives with respect to this parameter index
 
 				// output
 				// K: nxn matrix
 
 				// calculate the covariance matrix
-				return K_FF(m_pSqDist, pLogHyp, pdIndex);
+				return K_FF(m_pSqDist, logHyp, pdIndex);
 			}
 
 			// cross covariance
-			MatrixPtr Ks(MatrixConstPtr pXs, HypConstPtr pLogHyp) const
+			MatrixPtr Ks(MatrixConstPtr pXs, const Hyp &logHyp) const
 			{
 				// input
 				// pX (nxd): training inputs
 				// pXx (mxd): test inputs
-				// pLogHyp: log hyperparameters
+				// logHyp: log hyperparameters
 
 				// output
 				// K: nxm matrix
@@ -69,11 +67,11 @@ namespace GPOM{
 				MatrixPtr pSqDist = crossSqDistances(m_pX, pXs);
 
 				// calculate the covariance matrix
-				return K_FF(pSqDist, pLogHyp);
+				return K_FF(pSqDist, logHyp);
 			}
 
 			// self-variance/covariance
-			MatrixPtr Kss(MatrixConstPtr pXs, HypConstPtr pLogHyp, const bool fVarianceVector = true) const
+			MatrixPtr Kss(MatrixConstPtr pXs, const Hyp &logHyp, const bool fVarianceVector = true) const
 			{
 				// input
 				// pXs (mxd): test inputs
@@ -84,7 +82,7 @@ namespace GPOM{
 				const int m = PointMatrixDirection::fRowWisePointsMatrix ? pXs->rows() : pXs->cols();
 
 				// hyperparameters
-				Scalar sigma_f2 = exp(((Scalar) 2.f) * (*pLogHyp)(1));
+				Scalar sigma_f2 = exp(((Scalar) 2.f) * logHyp(1));
 
 				// output
 				MatrixPtr pKss;
@@ -104,7 +102,7 @@ namespace GPOM{
 					MatrixPtr pSqDist = selfSqDistances(pXs);
 
 					// calculate the covariance matrix
-					pKss = K_FF(pSqDist, pLogHyp);
+					pKss = K_FF(pSqDist, logHyp);
 				}
 
 				return pKss;
@@ -112,11 +110,11 @@ namespace GPOM{
 
 		protected:
 			// covariance matrix given pair-wise sqaured distances
-			MatrixPtr K_FF(MatrixConstPtr pSqDist, HypConstPtr pLogHyp, const int pdIndex = -1) const
+			MatrixPtr K_FF(MatrixConstPtr pSqDist, const Hyp &logHyp, const int pdIndex = -1) const
 			{
 				// input
 				// pSqDist (nxm): squared distances
-				// pLogHyp: log hyperparameters
+				// logHyp: log hyperparameters
 				// pdIndex: partial derivatives with respect to this parameter index
 
 				assert(pdIndex < 2);
@@ -126,8 +124,8 @@ namespace GPOM{
 				MatrixPtr pK(new Matrix(pSqDist->rows(), pSqDist->cols()));
 
 				// hyperparameters
-				Scalar inv_ell2						= exp(((Scalar) -2.f) * (*pLogHyp)(0));
-				Scalar sigma_f2					= exp(((Scalar)  2.f) * (*pLogHyp)(1));
+				Scalar inv_ell2						= exp(((Scalar) -2.f) * logHyp(0));
+				Scalar sigma_f2					= exp(((Scalar)  2.f) * logHyp(1));
 				Scalar neg_half_inv_ell2		= ((Scalar) -0.5f) * inv_ell2;
 				Scalar sigma_f2_inv_ell2		= sigma_f2 * inv_ell2;
 				Scalar twice_sigma_f2			= ((Scalar) 2.f) * sigma_f2;

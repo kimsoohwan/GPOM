@@ -10,8 +10,6 @@ namespace GPOM{
 	public:
 		// hyperparameters
 		typedef	Eigen::Matrix<Scalar, 0, 1>							Hyp;
-		typedef	boost::shared_ptr<Hyp>								HypPtr;
-		typedef	boost::shared_ptr<const Hyp>					HypConstPtr;
 
 	public:
 		// constructor
@@ -21,7 +19,7 @@ namespace GPOM{
 		virtual ~MeanZero() { }
 
 		// mean and derivatives
-		VectorPtr operator()(HypConstPtr pLogHyp, const int pdIndex = -1) const
+		VectorPtr operator()(const Hyp &logHyp, const int pdIndex = -1) const
 		{
 			// number of training data
 			const int n = getN();
@@ -31,7 +29,7 @@ namespace GPOM{
 		}
 
 		// Ms
-		VectorPtr Ms(MatrixConstPtr pXs, HypConstPtr pLogHyp) const
+		VectorPtr Ms(MatrixConstPtr pXs, const Hyp &logHyp) const
 		{
 			// number of training data
 			const int m = PointMatrixDirection::fRowWisePointsMatrix ? pXs->rows() : pXs->cols();

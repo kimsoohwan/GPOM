@@ -13,8 +13,6 @@ namespace GPOM{
 	public:
 		// hyperparameters
 		typedef	Eigen::Matrix<Scalar, 2, 1>							Hyp;						// s_nf, s_nd
-		typedef	boost::shared_ptr<Hyp>								HypPtr;
-		typedef	boost::shared_ptr<const Hyp>					HypConstPtr;
 
 		public:
 			// constructor
@@ -50,7 +48,7 @@ namespace GPOM{
 			virtual int	getN() const { return m_nd*(m_d+1)+m_n; }
 
 			// diagonal vector
-			VectorPtr operator()(HypConstPtr pLogHyp, const int pdIndex = -1) const
+			VectorPtr operator()(const Hyp &logHyp, const int pdIndex = -1) const
 			{			
 				assert(pdIndex < 2);
 
@@ -64,9 +62,9 @@ namespace GPOM{
 				// derivative w.r.t s_nf
 				case 0:
 					{
-						pD->head(m_nd).fill(((Scalar) 2.f) * exp((Scalar) 2.f * (*pLogHyp)(0)));				// F1
-						pD->segment(m_nd, m_nd*m_d).setZero();															// D*
-						pD->tail(m_n).fill(((Scalar) 2.f) * exp((Scalar) 2.f * (*pLogHyp)(0)));					// F2
+						pD->head(m_nd).fill(((Scalar) 2.f) * exp((Scalar) 2.f * logHyp(0)));				// F1
+						pD->segment(m_nd, m_nd*m_d).setZero();													// D*
+						pD->tail(m_n).fill(((Scalar) 2.f) * exp((Scalar) 2.f * logHyp(0)));					// F2
 						break;
 					}
 
@@ -74,7 +72,7 @@ namespace GPOM{
 				case 1:
 					{
 						pD->head(m_nd).setZero();																										// F1
-						pD->segment(m_nd, m_nd*m_d).fill(((Scalar) 2.f) * exp((Scalar) 2.f * (*pLogHyp)(1)));	// D*
+						pD->segment(m_nd, m_nd*m_d).fill(((Scalar) 2.f) * exp((Scalar) 2.f * logHyp(1)));			// D*
 						pD->tail(m_n).setZero();																											// F2
 						break;
 					}
@@ -82,9 +80,9 @@ namespace GPOM{
 				// likelihood
 				default:
 					{
-						pD->head(m_nd).fill(exp((Scalar) 2.f * (*pLogHyp)(0)));								// F1
-						pD->segment(m_nd, m_nd*m_d).fill(exp((Scalar) 2.f * (*pLogHyp)(1)));	// D*
-						pD->tail(m_n).fill(exp((Scalar) 2.f * (*pLogHyp)(0)));										// F2
+						pD->head(m_nd).fill(exp((Scalar) 2.f * logHyp(0)));								// F1
+						pD->segment(m_nd, m_nd*m_d).fill(exp((Scalar) 2.f * logHyp(1)));	// D*
+						pD->tail(m_n).fill(exp((Scalar) 2.f * logHyp(0)));										// F2
 						break;
 					}
 				}
@@ -93,7 +91,7 @@ namespace GPOM{
 			}
 
 			//// diagonal matrix
-			//MatrixPtr operator()(MatrixConstPtr pX, HypConstPtr pLogHyp, const int pdIndex = -1) const
+			//MatrixPtr operator()(MatrixConstPtr pX, const Hyp &logHyp, const int pdIndex = -1) const
 			//{
 			//	// number of training data
 			//	const int n = getN();
@@ -106,22 +104,22 @@ namespace GPOM{
 			//	// derivative w.r.t s_nd
 			//	case 0:
 			//		{
-			//			pD->block(0, 0, m_nd, m_nd).diagonal().fill(((Scalar) 2.f) * exp((Scalar) 2.f * (*pLogHyp)(0)));
+			//			pD->block(0, 0, m_nd, m_nd).diagonal().fill(((Scalar) 2.f) * exp((Scalar) 2.f * logHyp(0)));
 			//			break;
 			//		}
 
 			//	// derivative w.r.t s_nf
 			//	case 0:
 			//		{
-			//			pD->block(m_nd, m_nd, m_n, m_n).diagonal().fill(((Scalar) 2.f) * exp((Scalar) 2.f * (*pLogHyp)(1)));
+			//			pD->block(m_nd, m_nd, m_n, m_n).diagonal().fill(((Scalar) 2.f) * exp((Scalar) 2.f * logHyp(1)));
 			//			break;
 			//		}			
 
 			//	// likelihood
 			//	default:
 			//		{
-			//			pD->block(0, 0, m_nd, m_nd).diagonal().fill(exp((Scalar) 2.f * (*pLogHyp)(0)));
-			//			pD->block(m_nd, m_nd, m_n, m_n).diagonal().fill(exp((Scalar) 2.f * (*pLogHyp)(1)));
+			//			pD->block(0, 0, m_nd, m_nd).diagonal().fill(exp((Scalar) 2.f * logHyp(0)));
+			//			pD->block(m_nd, m_nd, m_n, m_n).diagonal().fill(exp((Scalar) 2.f * logHyp(1)));
 			//			break;
 			//		}
 			//	}
