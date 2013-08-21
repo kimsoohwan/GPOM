@@ -8,6 +8,7 @@
 #include <pcl/octree/octree_impl.h> 
 
 #include "GP/GP.hpp"
+#include "util/meshGrid.hpp"
 
 namespace GPOM{
 
@@ -44,31 +45,21 @@ public:
 					  const pcl::PointXYZ													&max,
 					  const float																	mapResolution)
 	{
-		// concatenate point clouds
-		//const pcl::PointCloud<pcl::PointXYZ> pX = pHitPoints + pRobotPositions;
-		//CovFunc::numRobotPositions = pRobotPositions->size();
-
 		// training inputs
 		Matrix Xd		= pHitPoints->getMatrixXfMap(3, 4, 0);
 		Matrix X			= pRobotPositions->getMatrixXfMap(3, 4, 0);
 		MatrixPtr pXd(&Xd);
 		MatrixPtr pX(&X);
-		//const int n1 = pHitPoints->size();
-		//const int n2 = pRobotPositions->size();
-		//const int d = 3;
-		//MatrixPtr  pX(new Matrix(d, n1+n2));
-		//pX->leftCols(n1) = pHitPoints->getMatrixXfMap(3, 4, 0);
-		//pX->rightCols(n2) = pRobotPositions->getMatrixXfMap(3, 4, 0);
-
-		//pointsMatrix.transposeInPlace();
-		//std::cout << "rows: " << X.rows() << std::endl;
-		//std::cout << "cols: " << X.cols() << std::endl;
-		//std::cout << pointsMatrix << std::endl;
+		//MatrixPtr pXd = boost::make_shared(pHitPoints->getMatrixXfMap(3, 4, 0));
+		//MatrixPtr pX	= boost::make_shared(pRobotPositions->getMatrixXfMap(3, 4, 0));
 
 		// training outputs
 		const int nd		= pXd->cols();
 		const int n		= pX->cols();
 		const int d		= 3;
+		std::cout << "nd = " << nd << std::endl;
+		std::cout << "n = " << n << std::endl;
+		std::cout << "d = " << d << std::endl;
 		VectorPtr pY(new Vector(nd*(d+1) + n));
 		pY->setZero();
 		for(int i = 0; i < nd; i++)
@@ -93,18 +84,25 @@ public:
 		likLogHyp << log(1.f), log(1.f);
 
 		// train
+		std::cout << "training ... " << std::endl;
 		m_gp.train<BFGS, DeltaFunc>(meanLogHyp, covLogHyp, likLogHyp, 10);
+		std::cout << "done in seconds" << std::endl;
 
 		std::cout << "Mean: " << std::endl << meanLogHyp << std::endl;
 		std::cout << "Cov: " << std::endl << covLogHyp << std::endl;
 		std::cout << "Lik: " << std::endl << likLogHyp << std::endl;
 
 		// test points
+		pcl::PointCloud<pcl::PointXYZ>::Ptr pTestPoints = meshGrid(min, max, mapResolution);
+		Matrix Xs		= pTestPoints->getMatrixXfMap(3, 4, 0);
+		MatrixPtr pXs(&Xs);
+		//MatrixPtr pXs= boost::make_shared(pTestPoints->getMatrixXfMap(3, 4, 0));
 
-		//pcl::PointXYZ min, max;
-		//pcl::getMinMax3D (*pPoints, min, max);
-		//std::cout << "min = " << min << std::endl;
-		//std::cout << "max = " << max << std::endl;
+		// predict
+		VectorPtr	pMu;
+		MatrixPtr		pSigma;
+		m_gp.predict(meanLogHyp, covLogHyp, likLogHyp, pXs, 
+								pMu, pSigma);
 	}
 
 	// create a continuous occupancy map
