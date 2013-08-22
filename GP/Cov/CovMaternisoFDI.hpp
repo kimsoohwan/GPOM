@@ -91,39 +91,8 @@ namespace GPOM{
 				std::cout << "nd = " << m_nd << std::endl;
 				std::cout << "d = " << m_d << std::endl;
 
-				//// covariance matrix
-				//std::cout << "before init 1" << std::endl;
-				////MatrixPtr pK(new Matrix(n, n)); // nd(d+1)+n by nd(d+1)+n
-				//MatrixPtr pK;
-				//try
-				//{
-				//	std::cout << "before init 2" << std::endl;
-				//	std::cout << "n = " << n << std::endl;
-				//	//pK.reset(new Matrix(n, n)); // nd(d+1)+n by nd(d+1)+n
-				//	pK.reset(new Matrix(33, 33)); // nd(d+1)+n by nd(d+1)+n
-				//	//pK.reset(new Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic>(n, n)); // nd(d+1)+n by nd(d+1)+n
-				//	std::cout << "after init 1" << std::endl;
-				//}
-				//catch (std::exception& e)
-				//{
-				//	std::cout << e.what() << std::endl;
-				//}
-				//std::cout << "after init 2" << std::endl;
-
 				// covariance matrix
-				std::cout << "before init" << std::endl;
-				try
-				{
-					//Matrix* ppK = new Matrix(n, n); // nd(d+1)+n by nd(d+1)+n
-					Matrix K(n, n); // nd(d+1)+n by nd(d+1)+n
-				}
-				catch (std::exception& e)
-				{
-					std::cout << e.what() << std::endl;
-				}
-				std::cout << "mid init" << std::endl;
 				MatrixPtr pK(new Matrix(n, n)); // nd(d+1)+n by nd(d+1)+n
-				std::cout << "after init" << std::endl;
 
 				// fill block matrices of FF, FD and DD in order
 				for(int row = 0; row <= m_d; row++)
@@ -132,8 +101,6 @@ namespace GPOM{
 					for(int col = row; col <= m_d; col++)
 					{
 						const int startingCol = m_nd*col;
-
-						std::cout << "row = " << row << ", col = " << col << std::endl;
 
 						// calculate the upper triangle
 						if(row == 0)
@@ -169,7 +136,6 @@ namespace GPOM{
 
 					if(m_n > 0)
 					{
-						std::cout << "row = " << row << " (last col)" << std::endl;
 						const int startingCol = m_nd*(m_d+1);
 
 						// F1F2
@@ -194,7 +160,6 @@ namespace GPOM{
 
 				if(m_n > 0)
 				{
-					std::cout << "(last row)" << std::endl;
 					const int startingRow = m_nd*(m_d+1);
 
 					// F2F2

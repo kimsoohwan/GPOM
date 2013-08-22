@@ -105,9 +105,10 @@ public:
 		//pcl::octree::OctreePointCloudSearch<pcl::PointXYZ>::LeafNodeIterator iter(octree);
 		unsigned int totalNumPoints = 0;
 		unsigned int numLeafNodes = 0;
+		unsigned int maxNumPoints = 0;
+		unsigned int minNumPoints = 1000000;
 		while (*++iter)
 		{
-			numLeafNodes += 1;
 			//std::cout << "# leaf node: " << numLeafNodes << std::endl;
 
 			// points in the leaf node
@@ -117,7 +118,10 @@ public:
 			if(n <= 0) continue;
 			std::cout << "# leaf node: " << numLeafNodes << std::endl;
 			std::cout << "# hit points: " << n << std::endl;
+			numLeafNodes += 1;
 			totalNumPoints += n;
+			if(n > maxNumPoints)		maxNumPoints = n;
+			if(n < minNumPoints)		minNumPoints = n;
 
 			// training inputs
 			//pcl::PointCloud<pcl::PointXYZ>::Ptr pHitPointsInLeafNode(new pcl::PointCloud<pcl::PointXYZ>(*pHitPoints, indexVector));
@@ -139,19 +143,19 @@ public:
 			LikFunc::Hyp			likLogHyp;
 
 			// default values
-			//covLogHyp << log(1.f), log(1.f);
-			//likLogHyp << log(1.f), log(1.f);
-			covLogHyp << log(42.7804f), log(0.0228842f);
-			likLogHyp << log(0.0133948f), log(0.403304f);
+			covLogHyp << log(1.f), log(1.f);
+			likLogHyp << log(1.f), log(1.f);
+			//covLogHyp << log(42.7804f), log(0.0228842f);
+			//likLogHyp << log(0.0133948f), log(0.403304f);
 
 			// train
 			//std::cout << "training ... " << std::endl;
-			//m_gp.train<BFGS, DeltaFunc>(meanLogHyp, covLogHyp, likLogHyp, 4);
+			m_gp.train<BFGS, DeltaFunc>(meanLogHyp, covLogHyp, likLogHyp, 10);
 			//std::cout << "done in seconds" << std::endl;
 
-			//std::cout << "Mean: " << std::endl << meanLogHyp.array().exp() << std::endl;
-			//std::cout << "Cov: " << std::endl << covLogHyp.array().exp() << std::endl;
-			//std::cout << "Lik: " << std::endl << likLogHyp.array().exp() << std::endl;
+			std::cout << "Mean: " << std::endl << meanLogHyp.array().exp() << std::endl;
+			std::cout << "Cov: " << std::endl << covLogHyp.array().exp() << std::endl;
+			std::cout << "Lik: " << std::endl << likLogHyp.array().exp() << std::endl;
 
 			// test points
 			Eigen::Vector3f nodeMin, nodeMax;
@@ -169,9 +173,13 @@ public:
 			MatrixPtr		pSigma;
 			m_gp.predict(meanLogHyp, covLogHyp, likLogHyp, pXs, 
 									pMu, pSigma);
+			*/
 		}
 		std::cout << "total: " << numLeafNodes << " leaf nodes." << std::endl;
 		std::cout << "total: " << totalNumPoints << " points." << std::endl;
+		std::cout << "max: " << maxNumPoints << std::endl;
+		std::cout << "min: " << minNumPoints << std::endl;
+		std::cout << "avg: " << (float) totalNumPoints / (float) numLeafNodes << std::endl;
 	
 
 		//// set training data

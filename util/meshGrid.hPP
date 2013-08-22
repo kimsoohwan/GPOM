@@ -30,7 +30,7 @@ namespace GPOM{
 		const int nx = floor((max.x() - min.x() - EPSILON) / gridSize);
 		const int ny = floor((max.y() - min.y() - EPSILON) / gridSize);
 		const int nz = floor((max.z() - min.z() - EPSILON) / gridSize);
-		MatrixPtr pXs(new Matrix(3, nx+ny+nz));
+		MatrixPtr pXs(new Matrix(3, nx*ny*nz));
 		//std::cout << nx << ", " << ny << ", " << nz << std::endl;
 
 		// generate mesh grid in the order of x, y, z

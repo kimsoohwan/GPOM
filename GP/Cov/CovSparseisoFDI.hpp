@@ -319,7 +319,7 @@ namespace GPOM{
 					{
 						// k_log(ell)	 = (delta(i, j) / (l^2r) - [(x_i - x'_i)/ (l^2 r)] * [(x_j - x'_j)/ (l^2 r)] / r) * (pK_pR + r * p2K_p2R)
 						//                     +[(x_i - x'_i)/ (l^2 r)] * [(x_j - x'_j)/ (l^2 r)] * (2* p2K_p2R + r * p3K_p3R)
-						(*pK_DD).noalias() = ((delta * inv_ell2 / pR->array() - inv_ell2 * inv_ell2 * (pDelta1->array()) * (pDelta2->array()) / pR->array().cube())
+						(*pK_DD).noalias() = ((delta * inv_ell2 * (pR->array().inverse()) - inv_ell2 * inv_ell2 * (pDelta1->array()) * (pDelta2->array()) / pR->array().cube())
 															  * (two_three * sigma_f2 * (pTwoPiR->array().cos() - PI * (pTwoPiR->array().sin()) * (((Scalar) 1.f) - pR->array()) - ((Scalar) 1.f))
 																  + pR->array() * (neg_two_three * PI * sigma_f2) * (pTwoPiR->array().sin() + TWO_PI * (pTwoPiR->array().cos()) * (((Scalar) 1.f) - pR->array())))
 														  + (inv_ell2 * inv_ell2 * (pDelta1->array()) * (pDelta2->array()) / pR->array().square())
@@ -332,7 +332,7 @@ namespace GPOM{
 				// derivatives of covariance matrix w.r.t log sigma_f
 				case 1:
 					{
-						(*pK_DD).noalias() = ((Scalar) 2.f) * ((((inv_ell2 * inv_ell2 * (pDelta1->array()) * (pDelta2->array()) / pR->array().cube()) - delta * inv_ell2 / pR->array())
+						(*pK_DD).noalias() = ((Scalar) 2.f) * ((((inv_ell2 * inv_ell2 * (pDelta1->array()) * (pDelta2->array()) / pR->array().cube()) - delta * inv_ell2 * (pR->array().inverse()))
                                                                          * (two_three * sigma_f2 * (pTwoPiR->array().cos() - PI * pTwoPiR->array().sin() * (((Scalar) 1.f) - pR->array()) - ((Scalar) 1.f)))
 							                                           - (inv_ell2 * inv_ell2 * (pDelta1->array()) * (pDelta2->array()) / pR->array().square())
 										                                 * (neg_two_three * PI * sigma_f2) * (pTwoPiR->array().sin() + TWO_PI * (pTwoPiR->array().cos()) * (((Scalar) 1.f) - pR->array())))).matrix();
@@ -345,7 +345,7 @@ namespace GPOM{
 					{
 						// k(X, X') = ([(x_i - x'_i)/ (l^2 r)] * [(x_j - x'_j)/ (l^2 r)] / r  - delta(i, j) / (l^2r)) * pK_pR
 						//                  -[(x_i - x'_i)/ (l^2 r)] * [(x_j - x'_j)/ (l^2 r)] * p2K_p2R
-						(*pK_DD).noalias() = (((inv_ell2 * inv_ell2 * (pDelta1->array()) * (pDelta2->array()) / pR->array().cube()) - delta * inv_ell2 / pR->array())
+						(*pK_DD).noalias() = (((inv_ell2 * inv_ell2 * (pDelta1->array()) * (pDelta2->array()) / pR->array().cube()) - delta * inv_ell2 * (pR->array().inverse()))
                                               * (two_three * sigma_f2 * (pTwoPiR->array().cos() - PI * pTwoPiR->array().sin() * (((Scalar) 1.f) - pR->array()) - ((Scalar) 1.f)))
 							               - (inv_ell2 * inv_ell2 * (pDelta1->array()) * (pDelta2->array()) / pR->array().square())
 										     * (neg_two_three * PI * sigma_f2) * (pTwoPiR->array().sin() + TWO_PI * (pTwoPiR->array().cos()) * (((Scalar) 1.f) - pR->array()))).matrix();

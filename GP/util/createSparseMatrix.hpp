@@ -2,7 +2,6 @@
 #define CREATE_SPARSE_MATRIX_HPP
 
 #include <vector>
-
 #include "GP/DataTypes.hpp"
 
 namespace GPOM{

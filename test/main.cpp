@@ -11,6 +11,7 @@
 #include "GP/Inf/InfExactFDI.hpp"
 
 #include "util/surfaceNormals.hpp"
+#include "util/int2string.hpp"
 #include "GPOM.hpp"
 using namespace GPOM;
 
@@ -54,33 +55,44 @@ int main()
 	pcl::PointCloud<pcl::PointXYZ>::Ptr pRobotPositions(new pcl::PointCloud<pcl::PointXYZ>);
 	pRobotPositions->push_back(robotPosition);
 #else
+	std::string dataPath("../data/");
 
 	// points
 	std::cout << "loading points ... " << std::endl;
 	pcl::PointCloud<pcl::PointXYZ>::Ptr pHitPoints(new pcl::PointCloud<pcl::PointXYZ>);
-	std::string pointsFilenName("../../data/1_points.pcd");
-	if (pcl::io::loadPCDFile<pcl::PointXYZ>(pointsFilenName, *pHitPoints) == -1)
+	pcl::PointCloud<pcl::PointXYZ>::Ptr pTempPoints(new pcl::PointCloud<pcl::PointXYZ>);
+	for(int scan = 1; scan < 2; scan++)
 	{
-		PCL_ERROR("Couldn't read file!\n");
-		return -1;
-	}
-	else
-	{
-		std::cout << pHitPoints->size() << " points are successfully loaded." << std::endl;
+		std::string pointsFilenName = dataPath + to_string(scan) + "_points.pcd";
+		if (pcl::io::loadPCDFile<pcl::PointXYZ>(pointsFilenName, *pTempPoints) == -1)
+		{
+			PCL_ERROR("Couldn't read file!\n");
+			return -1;
+		}
+		else
+		{
+			(*pHitPoints) += (*pTempPoints);
+			std::cout << pHitPoints->size() << " points are successfully loaded." << std::endl;
+		}
 	}
 
 	// surface normals
 	std::cout << "loading normals ... " << std::endl;
 	pcl::PointCloud<pcl::Normal>::Ptr pNormals(new pcl::PointCloud<pcl::Normal>);
-	std::string normalsFilenName("../../data/1_normals.pcd");
-	if (pcl::io::loadPCDFile<pcl::Normal>(normalsFilenName, *pNormals) == -1)
+	pcl::PointCloud<pcl::Normal>::Ptr pTempNormals(new pcl::PointCloud<pcl::Normal>);
+	for(int scan = 1; scan < 2; scan++)
 	{
-		PCL_ERROR("Couldn't read file!\n");
-		return -1;
-	}
-	else
-	{
-		std::cout << pNormals->size() << " surface normals are successfully loaded." << std::endl;
+		std::string normalsFilenName = dataPath + to_string(scan) + "_normals.pcd";
+		if (pcl::io::loadPCDFile<pcl::Normal>(normalsFilenName, *pTempNormals) == -1)
+		{
+			PCL_ERROR("Couldn't read file!\n");
+			return -1;
+		}
+		else
+		{
+			(*pNormals) += (*pTempNormals);
+			std::cout << pNormals->size() << " surface normals are successfully loaded." << std::endl;
+		}
 	}
 
 	// Point Clouds - Robot positions

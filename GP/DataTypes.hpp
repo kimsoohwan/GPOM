@@ -4,7 +4,7 @@
 #include <boost/shared_ptr.hpp>
 
 #include <Eigen/Dense>
-//#include <Eigen/Sparse>
+#include <Eigen/Sparse>
 //#include <Eigen/IterativeLinearSolvers>
 
 namespace GPOM{
@@ -24,9 +24,9 @@ namespace GPOM{
 	typedef	boost::shared_ptr<const Matrix>													MatrixConstPtr;
 
 	// Sparse Matrix
-	//typedef	Eigen::SparseMatrix<Scalar>														SparseMatrix;
-	//typedef	boost::shared_ptr<SparseMatrix>												SparseMatrixPtr;
-	//typedef	boost::shared_ptr<const SparseMatrix>									SparseMatrixConstPtr;
+	typedef	Eigen::SparseMatrix<Scalar>														SparseMatrix;
+	typedef	boost::shared_ptr<SparseMatrix>												SparseMatrixPtr;
+	typedef	boost::shared_ptr<const SparseMatrix>									SparseMatrixConstPtr;
 
 	// Vector
 	typedef	Eigen::Matrix<Scalar, Eigen::Dynamic, 1>								Vector;
