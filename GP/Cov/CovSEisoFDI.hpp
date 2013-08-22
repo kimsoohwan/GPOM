@@ -115,18 +115,28 @@ namespace GPOM{
 						if(row != col)	pK->block(startingCol, startingRow, m_nd, m_nd).noalias() = pK->block(startingRow, startingCol, m_nd, m_nd).transpose();
 					}
 
-					// F1F2
-					if(row == 0)		pK->block(startingRow, m_nd*(m_d+1), m_nd, m_n) = *(K_FF(m_pSqDistList[1], logHyp, pdIndex));
+					if(m_n > 0)
+					{
+						const int startingCol = m_nd*(m_d+1);
 
-					// D*F2
-					else					pK->block(startingRow, m_nd*(m_d+1), m_nd, m_n) = ((Scalar) -1.f) * (*(K_FD(m_pSqDistList[1], m_pDeltaListList[1][row-1], logHyp, pdIndex)));
+						// F1F2
+						if(row == 0)		pK->block(startingRow, startingCol, m_nd, m_n) = *(K_FF(m_pSqDistList[1], logHyp, pdIndex));
 
-					// copy its transpose
-					pK->block(m_nd*(m_d+1), startingRow, m_n, m_nd).noalias() = pK->block(startingRow, m_nd*(m_d+1), m_nd, m_n).transpose();
+						// D*F2
+						else					pK->block(startingRow, startingCol, m_nd, m_n) = ((Scalar) -1.f) * (*(K_FD(m_pSqDistList[1], m_pDeltaListList[1][row-1], logHyp, pdIndex)));
+
+						// copy its transpose
+						pK->block(startingCol, startingRow, m_n, m_nd).noalias() = pK->block(startingRow, startingCol, m_nd, m_n).transpose();
+					}
 				}
 
-				// F2F2
-				pK->block(m_nd*(m_d+1), m_nd*(m_d+1), m_n, m_n) = *(K_FF(m_pSqDistList[2], logHyp, pdIndex));
+				if(m_n > 0)
+				{
+					const int startingRow = m_nd*(m_d+1);
+
+					// F2F2
+					pK->block(startingRow, startingRow, m_n, m_n) = *(K_FF(m_pSqDistList[2], logHyp, pdIndex));
+				}
 
 				return pK;
 			}

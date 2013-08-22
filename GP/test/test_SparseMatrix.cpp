@@ -85,7 +85,7 @@ int main()
 		sparseCholLLT.compute(*pSparse);
 		endTime = boost::chrono::system_clock::now();
 		durationTime = endTime - startTime;
-		std::cout << "Sparse - LLT: " << durationTime.count() << " seconds" << std::endl;
+		std::cout << "Sparse - SimplicialLLT: " << durationTime.count() << " seconds" << std::endl;
 
 		// Sparse - LDLT
 		Eigen::SimplicialLDLT<SparseMatrix, Eigen::Upper> sparseCholLDLT;
@@ -93,7 +93,7 @@ int main()
 		sparseCholLDLT.compute(*pSparse);
 		endTime = boost::chrono::system_clock::now();
 		durationTime = endTime - startTime;
-		std::cout << "Sparse - LDLT: " << durationTime.count() << " seconds" << std::endl;
+		std::cout << "Sparse - SimplicialLDLT: " << durationTime.count() << " seconds" << std::endl;
 
 		// Sparse - CG
 		Eigen::ConjugateGradient<SparseMatrix, Eigen::Upper> sparseCholCG;
@@ -109,7 +109,7 @@ int main()
 		denseCholCG.compute(dense);
 		endTime = boost::chrono::system_clock::now();
 		durationTime = endTime - startTime;
-		std::cout << "Sparse - CG: " << durationTime.count() << " seconds" << std::endl;
+		std::cout << "Dense - CG: " << durationTime.count() << " seconds" << std::endl;
 
 		//std::cout << "dense = " << std::endl << dense << std::endl;
 		//std::cout << "sparse = " << std::endl << *pSparse << std::endl;

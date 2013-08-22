@@ -2,9 +2,11 @@
 #define COVARIANCE_FUNCTION_MATERN_ISO_BETWEEN_FUNCTION_VALUE_DERIVATIVE_AND_INTEGRAL_HPP
 
 #include <vector>
+#include <exception>
 
 #include "GP/Cov/CovMaterniso.hpp"
 #include "GP/util/TrainingInputSetterDerivatives.hpp"
+#include "GP/util/hasNaN.hpp"
 
 namespace GPOM{
 
@@ -50,12 +52,15 @@ namespace GPOM{
 			// operator
 			MatrixPtr operator()(const Hyp &logHyp, const int pdIndex = -1)
 			{
+				std::cout << "operator()" << std::endl;
 				return K(logHyp, pdIndex);
 			}
 
 			// self covariance
 			MatrixPtr K(const Hyp &logHyp, const int pdIndex = -1)
 			{
+				std::cout << "K()" << std::endl;
+				std::cout << "logHyp" << std::endl << logHyp << std::endl;
 				// input
 				// pX (nxd): training inputs
 				// logHyp: log hyperparameters
@@ -81,9 +86,44 @@ namespace GPOM{
 
 				// number of training data
 				const int n = getN();
+				std::cout << "n = " << n << std::endl;
+				std::cout << "n = " << m_n << std::endl;
+				std::cout << "nd = " << m_nd << std::endl;
+				std::cout << "d = " << m_d << std::endl;
+
+				//// covariance matrix
+				//std::cout << "before init 1" << std::endl;
+				////MatrixPtr pK(new Matrix(n, n)); // nd(d+1)+n by nd(d+1)+n
+				//MatrixPtr pK;
+				//try
+				//{
+				//	std::cout << "before init 2" << std::endl;
+				//	std::cout << "n = " << n << std::endl;
+				//	//pK.reset(new Matrix(n, n)); // nd(d+1)+n by nd(d+1)+n
+				//	pK.reset(new Matrix(33, 33)); // nd(d+1)+n by nd(d+1)+n
+				//	//pK.reset(new Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic>(n, n)); // nd(d+1)+n by nd(d+1)+n
+				//	std::cout << "after init 1" << std::endl;
+				//}
+				//catch (std::exception& e)
+				//{
+				//	std::cout << e.what() << std::endl;
+				//}
+				//std::cout << "after init 2" << std::endl;
 
 				// covariance matrix
+				std::cout << "before init" << std::endl;
+				try
+				{
+					//Matrix* ppK = new Matrix(n, n); // nd(d+1)+n by nd(d+1)+n
+					Matrix K(n, n); // nd(d+1)+n by nd(d+1)+n
+				}
+				catch (std::exception& e)
+				{
+					std::cout << e.what() << std::endl;
+				}
+				std::cout << "mid init" << std::endl;
 				MatrixPtr pK(new Matrix(n, n)); // nd(d+1)+n by nd(d+1)+n
+				std::cout << "after init" << std::endl;
 
 				// fill block matrices of FF, FD and DD in order
 				for(int row = 0; row <= m_d; row++)
@@ -92,6 +132,8 @@ namespace GPOM{
 					for(int col = row; col <= m_d; col++)
 					{
 						const int startingCol = m_nd*col;
+
+						std::cout << "row = " << row << ", col = " << col << std::endl;
 
 						// calculate the upper triangle
 						if(row == 0)
@@ -110,23 +152,59 @@ namespace GPOM{
 																																			 m_pDeltaListList[0][col-1],		col-1,
 																																			 logHyp, pdIndex));
 						}
+						//std::cout << "row: " << startingRow << " to " << startingRow + m_nd - 1 << "\t";
+						//std::cout << "col: " << startingCol << " to " << startingCol + m_nd - 1 << std::endl;
+						//if(pK->block(startingRow, startingCol, m_nd, m_nd).hasNaN())		std::cout << "pK1 has NaN." << std::endl;
 
 						// copy its transpose
 						if(row != col)	pK->block(startingCol, startingRow, m_nd, m_nd).noalias() = pK->block(startingRow, startingCol, m_nd, m_nd).transpose();
+						//if(row != col)	pK->block(startingCol, startingRow, m_nd, m_nd) = pK->block(startingRow, startingCol, m_nd, m_nd).transpose();
+						//if(row != col)
+						//{
+						//	std::cout << "row: " << startingCol << " to " << startingCol + m_nd - 1 << "\t";
+						//	std::cout << "col: " << startingRow << " to " << startingRow + m_nd - 1 << std::endl;
+						//}
+						//if(pK->block(startingCol, startingRow, m_nd, m_nd).hasNaN())		std::cout << "pK2 has NaN." << std::endl;
 					}
 
-					// F1F2
-					if(row == 0)		pK->block(startingRow, m_nd*(m_d+1), m_nd, m_n) = *(K_FF(m_pDistList[1], logHyp, pdIndex));
+					if(m_n > 0)
+					{
+						std::cout << "row = " << row << " (last col)" << std::endl;
+						const int startingCol = m_nd*(m_d+1);
 
-					// D*F2
-					else					pK->block(startingRow, m_nd*(m_d+1), m_nd, m_n) = ((Scalar) -1.f) * (*(K_FD(m_pDistList[1], m_pDeltaListList[1][row-1], logHyp, pdIndex)));
+						// F1F2
+						if(row == 0)		pK->block(startingRow, startingCol, m_nd, m_n) = *(K_FF(m_pDistList[1], logHyp, pdIndex));
 
-					// copy its transpose
-					pK->block(m_nd*(m_d+1), startingRow, m_n, m_nd).noalias() = pK->block(startingRow, m_nd*(m_d+1), m_nd, m_n).transpose();
+						// D*F2
+						else					pK->block(startingRow, startingCol, m_nd, m_n) = ((Scalar) -1.f) * (*(K_FD(m_pDistList[1], m_pDeltaListList[1][row-1], logHyp, pdIndex)));
+
+						//std::cout << "row: " << startingRow << " to " << startingRow + m_nd - 1 << "\t";
+						//std::cout << "col: " << startingCol << " to " << startingCol + m_n - 1 << std::endl;
+						//if(pK->block(startingRow, startingCol, m_nd, m_n).hasNaN())		std::cout << "pK3 has NaN." << std::endl;
+
+						// copy its transpose
+						pK->block(startingCol, startingRow, m_n, m_nd).noalias() = pK->block(startingRow, startingCol, m_nd, m_n).transpose();
+						//pK->block(startingCol, startingRow, m_n, m_nd) = pK->block(startingRow, startingCol, m_nd, m_n).transpose();
+
+						//std::cout << "row: " << startingCol << " to " << startingCol + m_n - 1 << "\t";
+						//std::cout << "col: " << startingRow << " to " << startingRow + m_nd - 1 << std::endl;
+						//if(pK->block(startingCol, startingRow, m_n, m_nd).hasNaN())		std::cout << "pK4 has NaN." << std::endl;
+					}
 				}
 
-				// F2F2
-				pK->block(m_nd*(m_d+1), m_nd*(m_d+1), m_n, m_n) = *(K_FF(m_pDistList[2], logHyp, pdIndex));
+				if(m_n > 0)
+				{
+					std::cout << "(last row)" << std::endl;
+					const int startingRow = m_nd*(m_d+1);
+
+					// F2F2
+					pK->block(startingRow, startingRow, m_n, m_n) = *(K_FF(m_pDistList[2], logHyp, pdIndex));
+					//if(pK->block(startingRow, startingRow, m_n, m_n).hasNaN())		std::cout << "pK5 has NaN." << std::endl;
+
+					//std::cout << "row: " << startingRow << " to " << startingRow + m_n - 1 << "\t";
+					//std::cout << "col: " << startingRow << " to " << startingRow + m_n - 1 << std::endl;
+					//if(pK->hasNaN())					std::cout << "pK has NaN." << std::endl;
+				}
 
 				return pK;
 			}
@@ -255,6 +333,7 @@ namespace GPOM{
 				if(pdIndex == 1) (*pK_FD) = ((Scalar) 2.f) * (*pK_FD);
 	#endif
 
+				//if(pK_FD->hasNaN())		std::cout << "CovMaterniso::K_FD has NaN." << std::endl;
 				return pK_FD;
 			}
 
@@ -378,6 +457,7 @@ namespace GPOM{
 				if(pdIndex == 1)		(*pK_DD) *= (Scalar) 2.f;
 	#endif
 
+				//if(pK_DD->hasNaN())		std::cout << "CovMaterniso::K_DD has NaN." << std::endl;
 				return pK_DD;
 			}
 

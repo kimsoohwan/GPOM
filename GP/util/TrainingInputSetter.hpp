@@ -8,6 +8,11 @@ namespace GPOM{
 	class TrainingInputSetter
 	{
 	public:
+		TrainingInputSetter()
+			: m_n(0), m_d(0)
+		{
+		}
+
 		// setter
 		bool setTrainingInputs(MatrixConstPtr pX)
 		{

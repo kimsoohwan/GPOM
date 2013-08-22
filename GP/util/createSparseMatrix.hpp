@@ -7,7 +7,7 @@
 
 namespace GPOM{
 
-	SparseMatrixPtr createSparseMatrix(const Matrix &dense, const Scalar cutLine, const bool fUpperTriangleOnly = true)
+	SparseMatrixPtr createSparseMatrix(Matrix &dense, const Scalar cutLine, const bool fUpperTriangleOnly = true)
 	{
 		// matrix size
 		const int n = dense.rows();
@@ -21,13 +21,15 @@ namespace GPOM{
 		{
 			for(int row = 0; row < n; row++)
 				for(int col = row; col < m; col++)
-					if(dense(row, col) > cutLine) tripletList.push_back(Eigen::Triplet<Scalar>(row, col, dense(row, col)));
+					if(dense(row, col) > cutLine)		tripletList.push_back(Eigen::Triplet<Scalar>(row, col, dense(row, col)));
+					else												dense(row, col) = (Scalar) 0.f;
 		}
 		else
 		{
 			for(int row = 0; row < n; row++)
 				for(int col = 0; col < m; col++)
-					if(dense(row, col) > cutLine) tripletList.push_back(Eigen::Triplet<Scalar>(row, col, dense(row, col)));
+					if(dense(row, col) > cutLine)		tripletList.push_back(Eigen::Triplet<Scalar>(row, col, dense(row, col)));
+					else												dense(row, col) = (Scalar) 0.f;
 		}
 
 		// initialize with the triple list
@@ -36,7 +38,7 @@ namespace GPOM{
 		return pSparse;
 	}
 
-	SparseMatrixPtr createSparseMatrix(MatrixConstPtr pDense, const Scalar cutLine, const bool fUpperTriangleOnly = true)
+	SparseMatrixPtr createSparseMatrix(MatrixPtr pDense, const Scalar cutLine, const bool fUpperTriangleOnly = true)
 	{
 		return createSparseMatrix(*pDense, cutLine, fUpperTriangleOnly);
 	}

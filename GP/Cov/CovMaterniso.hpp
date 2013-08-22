@@ -162,6 +162,8 @@ namespace GPOM{
 					}
 				}
 
+				//if(pK->hasNaN())		std::cout << "CovMaterniso::K_FF has NaN." << std::endl;
+
 				return pK;
 			}
 

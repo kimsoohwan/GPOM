@@ -8,6 +8,11 @@ namespace GPOM{
 	class TrainingInputSetterDerivatives
 	{
 	public:
+		TrainingInputSetterDerivatives()
+			: m_nd(0)
+		{
+		}
+
 		//setter 
 		bool setTrainingInputs(MatrixConstPtr pXd)
 		{

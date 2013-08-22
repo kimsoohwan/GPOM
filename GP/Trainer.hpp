@@ -69,10 +69,10 @@ public:
 																			   pDnlZ,
 																			   1);
 
-			std::cout << "hyp.mean = " << std::endl << meanLogHyp << std::endl << std::endl;
-			std::cout << "hyp.cov = " << std::endl << covLogHyp << std::endl << std::endl;
-			std::cout << "hyp.lik = " << std::endl << likCovLogHyp << std::endl << std::endl;
-			std::cout << "nlz = " << nlZ << std::endl;
+			//std::cout << "hyp.mean = " << std::endl << meanLogHyp << std::endl << std::endl;
+			//std::cout << "hyp.cov = " << std::endl << covLogHyp << std::endl << std::endl;
+			//std::cout << "hyp.lik = " << std::endl << likCovLogHyp << std::endl << std::endl;
+			//std::cout << "nlz = " << nlZ << std::endl;
 			return nlZ;
 		}
 
@@ -106,10 +106,10 @@ public:
 																			   pDnlZ,
 																			   -1);
 
-			std::cout << "hyp.mean = " << std::endl << meanLogHyp << std::endl << std::endl;
-			std::cout << "hyp.cov = " << std::endl << covLogHyp << std::endl << std::endl;
-			std::cout << "hyp.lik = " << std::endl << likCovLogHyp << std::endl << std::endl;
-			std::cout << "dnlz = " << std::endl << *pDnlZ << std::endl << std::endl;
+			//std::cout << "hyp.mean = " << std::endl << meanLogHyp << std::endl << std::endl;
+			//std::cout << "hyp.cov = " << std::endl << covLogHyp << std::endl << std::endl;
+			//std::cout << "hyp.lik = " << std::endl << likCovLogHyp << std::endl << std::endl;
+			//std::cout << "dnlz = " << std::endl << *pDnlZ << std::endl << std::endl;
 
 			DlibVector dnlZ(meanLogHyp.size() + covLogHyp.size() + likCovLogHyp.size());
 			Eigen2Dlib(pDnlZ, dnlZ);

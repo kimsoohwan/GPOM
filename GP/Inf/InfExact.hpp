@@ -44,6 +44,8 @@ namespace GPOM{
 							 MatrixPtr								&pSigma, 
 							 bool										fVarianceVector = true)
 		{
+			std::cout << "InfExact::predict" << std::endl;
+
 			// number of data
 			assert(m_MeanFunc.getN() == m_CovFunc.getN() && m_CovFunc.getN() == m_LikFunc.getN() && m_LikFunc.getN() == getN());
 			const int n = getN();
@@ -53,7 +55,9 @@ namespace GPOM{
 			// Kn = K + D
 			// LL' = D^(-1/2) * K * D^(-1/2) + I
 			// alpha = inv(K + sn2*I)*(y-m)
+			std::cout << "InfExact::calculateLandAlpha" << std::endl;
 			calculateLandAlpha(meanLogHyp, covLogHyp, likCovLogHyp);
+			std::cout << "InfExact::~calculateLandAlpha" << std::endl;
 
 			// Ks, Kss
 			MatrixConstPtr pKs		= m_CovFunc.Ks(pXs, covLogHyp); // nxm
@@ -66,6 +70,7 @@ namespace GPOM{
 			//       = ms + Ks' * alpha
 			pMu.reset(new Vector(m));
 			pMu->noalias() = *(m_MeanFunc.Ms(pXs, meanLogHyp)) + (pKs->transpose()) * (*m_pAlpha);
+			std::cout << "InfExact::Mu" << std::endl;
 			//std::cout << "Mu = " << std::endl << *pMu << std::endl << std::endl;
 
 			// predictive variance
@@ -79,7 +84,9 @@ namespace GPOM{
 			// V = inv(L) * D^(-1/2) * Ks
 			//        (nxn)  *    (nxn)    * (nxm)
 			Matrix V(n, m); // nxm
-			V = m_pL->matrixL().solve(m_pInvSqrtD->asDiagonal() * (*pKs));
+			V = m_L.matrixL().solve(m_pInvSqrtD->asDiagonal() * (*pKs));
+			std::cout << "InfExact::V" << std::endl;
+			//V = m_L.getL().solve(m_pInvSqrtD->asDiagonal() * (*pKs));
 			//std::cout << "V = " << std::endl << V << std::endl << std::endl;
 
 			if(fVarianceVector)
@@ -95,6 +102,7 @@ namespace GPOM{
 				(*pSigma).noalias() = (*pKss) - V.transpose() * V;
 			}
 			//std::cout << "Sigma = " << std::endl << *pSigma << std::endl << std::endl;
+			std::cout << "InfExact::Sigma" << std::endl;
 		}
 
 
@@ -122,7 +130,7 @@ namespace GPOM{
 			// LL' = D^(-1/2) * K * D^(-1/2) + I
 			// alpha = inv(K + sn2*I)*(y-m)
 			calculateLandAlpha(meanLogHyp, covLogHyp, likCovLogHyp);
-			//std::cout << "L = " << std::endl << Matrix(m_pL->matrixL()) << std::endl << std::endl;
+			//std::cout << "L = " << std::endl << Matrix(m_L.matrixL()) << std::endl << std::endl;
 			//std::cout << "D^(-1/2) = " << std::endl << *m_pInvSqrtD << std::endl << std::endl;
 			//std::cout << "y - m = " << std::endl << *m_pY_M << std::endl << std::endl;
 			//std::cout << "alpha = " << std::endl << *m_pAlpha << std::endl << std::endl;
@@ -142,16 +150,18 @@ namespace GPOM{
 				//std::cout << "covLogHyp = " << std::endl << covLogHyp << std::endl << std::endl;
 				//std::cout << "likCovLogHyp = " << std::endl << likCovLogHyp << std::endl << std::endl;
 
-				Matrix L(m_pL->matrixL());
+				//Matrix L(m_L.matrixL());
 				nlZ = ((Scalar) 0.5f) * (*m_pY_M).dot(*m_pAlpha)
-					  + L.diagonal().array().log().sum()
+					  //+ L.diagonal().array().log().sum()
+					  + m_L.matrixL().nestedExpression().diagonal().array().log().sum()
 					  - m_pInvSqrtD->array().log().sum()
 					  + ((Scalar) n) * ((Scalar) 0.918938533204673f); // log(2pi)/2 = 0.918938533204673
 				//nlZ = ((Scalar) 0.5f) * ((*m_pY_M).transpose() * (*m_pAlpha)).sum()
 				//	  + log(det)
 				//	  + ((Scalar) n) * ((Scalar) 0.918938533204673f); // log(2pi)/2 = 0.918938533204673
 				//std::cout << "1 = " << std::endl << ((Scalar) 0.5f) * (*m_pY_M).dot(*m_pAlpha) << std::endl << std::endl;
-				//std::cout << "2 = " << std::endl << L.diagonal().array().log().sum() << std::endl << std::endl;
+				////std::cout << "2 = " << std::endl << L.diagonal().array().log().sum() << std::endl << std::endl;
+				//std::cout << "2 = " << std::endl << m_L.matrixL().nestedExpression().diagonal().array().log().sum() << std::endl << std::endl;
 				//std::cout << "3 = " << std::endl <<  - m_pInvSqrtD->array().log().sum() << std::endl << std::endl;
 				//std::cout << "4 = " << std::endl << ((Scalar) n) * ((Scalar) 0.918938533204673f) << std::endl << std::endl;
 			}
@@ -194,7 +204,7 @@ namespace GPOM{
 				// => inv(Kn) = D^(-1/2) * L.solve(D^(-1/2))
 
 				Matrix Q(n, n); // nxn
-				Q.noalias() = m_pInvSqrtD->asDiagonal() * (m_pL->solve(Matrix(m_pInvSqrtD->asDiagonal())));
+				Q.noalias() = m_pInvSqrtD->asDiagonal() * (m_L.solve(Matrix(m_pInvSqrtD->asDiagonal())));
 				Q -= (*m_pAlpha) * (m_pAlpha->transpose());
 				for(int i = 0; i < covLogHyp.size(); i++)
 				{
@@ -231,22 +241,31 @@ namespace GPOM{
 			const int n = getN();
 
 			// memory allocation
-			m_pL.reset(new CholeskyFactor());			// nxn
+			std::cout << "calculateLandAlpha::init" << std::endl;
+			//m_pL.reset(new CholeskyFactor());			// nxn
 			//m_pInvSqrtD.reset(new Vector(n));			// nx1
+			std::cout << "calculateLandAlpha::m_L" << std::endl;
 			m_pY_M.reset(new Vector(n));					// nx1
+			std::cout << "calculateLandAlpha::m_pY_M" << std::endl;
 			m_pAlpha.reset(new Vector(n));					// nx1
+			std::cout << "calculateLandAlpha::m_pAlpha" << std::endl;
 
 			// K 
 			MatrixPtr pKn = m_CovFunc(covLogHyp); // [CAUTION] K: upper triangular matrix
+			if(pKn->hasNaN())		std::cout << "K has NaN." << std::endl;
 			//std::cout << "K = " << std::endl << *pKn << std::endl << std::endl;
+			std::cout << "calculateLandAlpha::K" << std::endl;
 
 			// D = sn2*I = D^(1/2) * D^(1/2)
 			//MatrixPtr pD = m_LikFunc(likCovLogHyp);
 			//VectorPtr pD = m_LikFunc(likCovLogHyp);
 			m_pInvSqrtD = m_LikFunc(likCovLogHyp);	// sW
+			if(m_pInvSqrtD->hasNaN())		std::cout << "D has NaN." << std::endl;
 			//std::cout << "D = " << std::endl << *m_pInvSqrtD << std::endl << std::endl;
 			(*m_pInvSqrtD) = m_pInvSqrtD->cwiseSqrt().cwiseInverse();
+			if(m_pInvSqrtD->hasNaN())		std::cout << "InvSqrtD has NaN." << std::endl;
 			//std::cout << "D^(-1/2) = " << std::endl << *m_pInvSqrtD << std::endl << std::endl;
+			std::cout << "calculateLandAlpha::InvSqrtD" << std::endl;
 
 			// Kn = K + D
 			//(*pKn) += pD->asDiagonal();
@@ -256,19 +275,48 @@ namespace GPOM{
 			//std::cout << "K = " << std::endl << *pKn << std::endl << std::endl;
 			//std::cout << "K/sn2 = " << std::endl << m_pInvSqrtD->asDiagonal() * (*pKn) * m_pInvSqrtD->asDiagonal() << std::endl << std::endl;
 			(*pKn) = m_pInvSqrtD->asDiagonal() * (*pKn) * m_pInvSqrtD->asDiagonal() + Matrix(n, n).setIdentity();
+			if(pKn->hasNaN())		std::cout << "Kn has NaN." << std::endl;
 			//std::cout << "K/sn2 + I = " << std::endl << *pKn << std::endl << std::endl;
+			std::cout << "calculateLandAlpha::Kn" << std::endl;
 
 			// instead of						LL' = K + D
 			// for numerical stability,	LL' = D^(-1/2) * K * D^(-1/2) + I 
-			m_pL->compute(*pKn);	// compute the Cholesky decomposition of Kn
-			//m_pL->compute(pKn->selfadjointView<Eigen::Upper>() );
+			m_L.compute(*pKn);	// compute the Cholesky decomposition of Kn
+			std::cout << "calculateLandAlpha::L" << std::endl;
+			//switch(m_L.info())
+			//{
+			//case Eigen::ComputationInfo::Success:
+			//	{
+			//		std::cout << "Success" << std::endl;
+			//		break;
+			//	}
+			//case Eigen::ComputationInfo::NumericalIssue :
+			//	{
+			//		std::cout << "NumericalIssue " << std::endl;
+			//		break;
+			//	}
+			//case Eigen::ComputationInfo::NoConvergence :
+			//	{
+			//		std::cout << "NoConvergence " << std::endl;
+			//		break;
+			//	}
+			//case Eigen::ComputationInfo::InvalidInput :
+			//	{
+			//		std::cout << "InvalidInput " << std::endl;
+			//		break;
+			//	}
+			//}
+
+			//m_L.compute(pKn->selfadjointView<Eigen::Upper>() );
 			// [CAUTION]
-			// Matrix L(n, n); L = m_pL->matrixL();
-			// L*L.transpose() != m_pL->matrixLLT();
-			//std::cout << "L = " << std::endl << Matrix(m_pL->matrixL()) << std::endl << std::endl;
+			// Matrix L(n, n); L = m_L.matrixL();
+			// L*L.transpose() != m_L.matrixLLT();
+			//std::cout << "L = " << std::endl << Matrix(m_L.matrixL()) << std::endl << std::endl;
 
 			// y - m
 			(*m_pY_M).noalias() = (*m_pY) - (*(m_MeanFunc(meanLogHyp)));
+			if(m_pY_M->hasNaN())		std::cout << "Y_M has NaN." << std::endl;
+			std::cout << "calculateLandAlpha::Y-M" << std::endl;
 			//std::cout << "y - m = " << std::endl << *m_pY_M << std::endl << std::endl;
 
 			// alpha = inv(K + sn2*I)*(y-m)
@@ -277,10 +325,12 @@ namespace GPOM{
 			// => (D^(-1/2) * K * D^(-1/2) + I ) * D^(1/2) * alpha = D^(-1/2) * (y - m)
 			// => D^(1/2) * alpha = L.solve(D^(-1/2) * (y - m))
 			// => alpha = D^(-1/2) * L.solve(D^(-1/2) * (y - m))
-			//(*m_pAlpha) = m_pL->solve(*m_pY_M);
-			(*m_pAlpha).noalias() = m_pInvSqrtD->asDiagonal() * (m_pL->solve(m_pInvSqrtD->asDiagonal() * (*m_pY_M)));
+			//(*m_pAlpha) = m_L.solve(*m_pY_M);
+			(*m_pAlpha).noalias() = m_pInvSqrtD->asDiagonal() * (m_L.solve(m_pInvSqrtD->asDiagonal() * (*m_pY_M)));
+			if(m_pAlpha->hasNaN())		std::cout << "Alpha has NaN." << std::endl;
+			std::cout << "calculateLandAlpha::Alpha" << std::endl;
 			//std::cout << "D^(-1/2) * (y - m) = " << std::endl << m_pInvSqrtD->asDiagonal() * (*m_pY_M) << std::endl << std::endl;
-			//std::cout << "L.solve(D^(-1/2) * (y - m)) = " << std::endl << m_pL->solve(m_pInvSqrtD->asDiagonal() * (*m_pY_M)) << std::endl << std::endl;
+			//std::cout << "L.solve(D^(-1/2) * (y - m)) = " << std::endl << m_L.solve(m_pInvSqrtD->asDiagonal() * (*m_pY_M)) << std::endl << std::endl;
 			//std::cout << "alpha = " << std::endl << *m_pAlpha << std::endl << std::endl;
 		}
 
@@ -291,7 +341,7 @@ namespace GPOM{
 		LikFunc					m_LikFunc;
 
 		// L, alpha
-		CholeskyFactorPtr			m_pL;							// LL' = D^(-1/2) * K * D^(-1/2) + I
+		CholeskyFactor					m_L;							// LL' = D^(-1/2) * K * D^(-1/2) + I
 		VectorPtr							m_pInvSqrtD;				// D^(-1/2)
 		VectorPtr							m_pY_M;					// y-m
 		VectorPtr							m_pAlpha;					// alpha = inv(Kn) * (y-m)
