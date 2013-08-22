@@ -66,9 +66,11 @@ public:
 	{
 		// training inputs
 		//Matrix Xd		= pHitPoints->getMatrixXfMap(3, 4, 0);
-		Matrix X			= pRobotPositions->getMatrixXfMap(3, 4, 0);
+		//Matrix X			= pRobotPositions->getMatrixXfMap(3, 4, 0);
 		//MatrixPtr pXd(&Xd);
-		MatrixPtr pX(&X);
+		//MatrixPtr pX(&X);
+		MatrixPtr pX = copyPoints(pRobotPositions);
+		std::cout << "X= " << std::endl << *pX << std::endl << std::endl;
 		//MatrixPtr pXd = boost::make_shared(pHitPoints->getMatrixXfMap(3, 4, 0));
 		//MatrixPtr pX	= boost::make_shared(pRobotPositions->getMatrixXfMap(3, 4, 0));
 
@@ -118,12 +120,15 @@ public:
 			totalNumPoints += n;
 
 			// training inputs
-			pcl::PointCloud<pcl::PointXYZ>::Ptr pHitPointsInLeafNode(new pcl::PointCloud<pcl::PointXYZ>(*pHitPoints, indexVector));
-			Matrix Xd = pHitPointsInLeafNode->getMatrixXfMap(3, 4, 0);
-			MatrixPtr pXd(&Xd);
+			//pcl::PointCloud<pcl::PointXYZ>::Ptr pHitPointsInLeafNode(new pcl::PointCloud<pcl::PointXYZ>(*pHitPoints, indexVector));
+			//Matrix Xd = pHitPointsInLeafNode->getMatrixXfMap(3, 4, 0);
+			//MatrixPtr pXd(&Xd);
+			MatrixPtr pXd = copyPoints(pHitPoints, indexVector);
+			std::cout << "Xd = " << std::endl << *pXd << std::endl << std::endl;
 
 			// training outputs
 			VectorPtr pY = generateTrainingOutputs(pNormals, pRobotPositions, indexVector);
+			std::cout << "Y = " << std::endl << *pY << std::endl << std::endl;
 
 			// set training data
 			m_gp.setTrainingData(pXd, pX, pY);

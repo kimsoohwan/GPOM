@@ -55,6 +55,31 @@ namespace GPOM{
 		return pXs;
 	}
 
+	MatrixPtr copyPoints(pcl::PointCloud<pcl::PointXYZ>::ConstPtr pPoints, std::vector<int> &indexVector)
+	{
+		const int n = indexVector.size();
+		MatrixPtr pX(new Matrix(3, n));
+		for(int col = 0; col < n; col++)
+		{
+			(*pX)(0, col) = (*pPoints)[ indexVector[col] ].x;
+			(*pX)(1, col) = (*pPoints)[ indexVector[col] ].y;
+			(*pX)(2, col) = (*pPoints)[ indexVector[col] ].z;
+		}
+		return pX;
+	}
+
+	MatrixPtr copyPoints(pcl::PointCloud<pcl::PointXYZ>::ConstPtr pPoints)
+	{
+		const int n = pPoints->size();
+		MatrixPtr pX(new Matrix(3, n));
+		for(int col = 0; col < n; col++)
+		{
+			(*pX)(0, col) = (*pPoints)[ col ].x;
+			(*pX)(1, col) = (*pPoints)[ col ].y;
+			(*pX)(2, col) = (*pPoints)[ col ].z;
+		}
+		return pX;
+	}
 }
 
 #endif
