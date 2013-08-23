@@ -18,6 +18,7 @@ using namespace GPOM;
 typedef GaussianProcessOccupancyMap<MeanZeroFDI, CovMaterniso3FDI, LikGaussFDI, InfExactFDI> GPOMType;
 //typedef GaussianProcessOccupancyMap<MeanZeroFDI, CovSparseisoFDI, LikGaussFDI, InfExactFDI> GPOMType;
 
+/*
 int main()
 {
 #if 0
@@ -107,4 +108,31 @@ int main()
 	GPOMType gpom;
 	gpom.build(pHitPoints, pNormals, pRobotPositions, mapResolution, octreeResolution);
 	//gpom.build(pHitPoints, pNormals, mapResolution, octreeResolution);
+}
+*/
+
+#include "GPOctree/OctreePointCloudGP.hpp"
+using namespace GPOM;
+
+int main()
+{
+	// octree
+	Scalar mapResolution = 0.1f; // 10cm
+	pcl::PointXYZ octreeMin(-10, -10, -10);
+	pcl::PointXYZ octreeMax(10, 10, 10);
+	OctreePointCloudGP<pcl::PointXYZ> octree(mapResolution);
+	octree.defineBoundingBox(octreeMin.x, octreeMin.y, octreeMin.z, octreeMax.x, octreeMax.y, octreeMax.z);
+
+	// merge
+	octree.mergeMeanAndVarianceAtPoint(pcl::PointXYZ(1, 2, 3), 1.f, 1.f);
+	octree.mergeMeanAndVarianceAtPoint(pcl::PointXYZ(3, 4, 5), 1.f, 2.f);
+
+	// iterate
+	OctreePointCloudGP<pcl::PointXYZ>::LeafNodeIterator iter(octree);
+	while(*++iter)
+	{
+		iter.getLeafContainer().getMean();
+	}
+
+	return 0;
 }
