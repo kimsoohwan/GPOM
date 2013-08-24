@@ -111,28 +111,54 @@ int main()
 }
 */
 
-#include "GPOctree/OctreePointCloudGP.hpp"
+#include "Octree/OctreeGPOM.hpp"
 using namespace GPOM;
 
 int main()
 {
 	// octree
-	Scalar mapResolution = 0.1f; // 10cm
+	const double mapResolution				= 0.1; // 10cm
+	OctreeGPOM octree(mapResolution);
+
+	// set bounding box
+	const float minValue = std::numeric_limits<float>::epsilon();
 	pcl::PointXYZ octreeMin(-10, -10, -10);
 	pcl::PointXYZ octreeMax(10, 10, 10);
-	OctreePointCloudGP<pcl::PointXYZ> octree(mapResolution);
 	octree.defineBoundingBox(octreeMin.x, octreeMin.y, octreeMin.z, octreeMax.x, octreeMax.y, octreeMax.z);
 
 	// merge
-	octree.mergeMeanAndVarianceAtPoint(pcl::PointXYZ(1, 2, 3), 1.f, 1.f);
-	octree.mergeMeanAndVarianceAtPoint(pcl::PointXYZ(3, 4, 5), 1.f, 2.f);
+	octree.mergeMeanAndVarianceAtPoint(pcl::PointXYZ(1, 2, 3), 0.f, 1.f);
+	octree.mergeMeanAndVarianceAtPoint(pcl::PointXYZ(1, 2, 3), 0.1f, 2.f);
+
+	octree.mergeMeanAndVarianceAtPoint(pcl::PointXYZ(3, 4, 5), 0.f, 2.f);
+	octree.mergeMeanAndVarianceAtPoint(pcl::PointXYZ(3, 4, 5), -0.1f, 2.f);
+
+	octree.mergeMeanAndVarianceAtPoint(pcl::PointXYZ(6, 7, 8), -1.f, 0.1f);
+
+	octree.mergeMeanAndVarianceAtPoint(pcl::PointXYZ(9, 10, 11), -1.f, 0.1f);
+	std::cout << "number of leaf nodes: " << octree.getLeafCount() << std::endl;
 
 	// iterate
-	OctreePointCloudGP<pcl::PointXYZ>::LeafNodeIterator iter(octree);
+	OctreeGPOM::LeafNodeIterator iter(octree);
+	GaussianDistribution gaussian;
+	pcl::PointXYZ center;
+	Scalar occupancy;
 	while(*++iter)
 	{
-		iter.getLeafContainer().getMean();
+		// query Gaussian distribution
+		octree.getGaussianDistributionAtLeafNode(iter, center, gaussian);
+		std::cout << "(" << center.x << ", " << center.y << ", " << center.z << "): mean = " << gaussian.getMean() << ", variance = " << gaussian.getVariance() << std::endl;
+
+		// query occupancy
+		octree.getOccupancyAtLeafNode(iter, center, occupancy);
+		std::cout << "(" << center.x << ", " << center.y << ", " << center.z << "): occupancy = " << occupancy << std::endl;
 	}
+
+	// visualize
+	OctreeGPOM::AlignedPointTVector voxelCenterList;
+	int numOccupiedVoxels = octree.getOccupiedVoxelCenters(voxelCenterList);
+	for(unsigned int i = 0; i < voxelCenterList.size(); i++)
+		std::cout << voxelCenterList[i] << std::endl;
 
 	return 0;
 }

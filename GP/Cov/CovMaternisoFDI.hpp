@@ -52,15 +52,15 @@ namespace GPOM{
 			// operator
 			MatrixPtr operator()(const Hyp &logHyp, const int pdIndex = -1)
 			{
-				std::cout << "operator()" << std::endl;
+				//std::cout << "operator()" << std::endl;
 				return K(logHyp, pdIndex);
 			}
 
 			// self covariance
 			MatrixPtr K(const Hyp &logHyp, const int pdIndex = -1)
 			{
-				std::cout << "K()" << std::endl;
-				std::cout << "logHyp" << std::endl << logHyp << std::endl;
+				//std::cout << "K()" << std::endl;
+				//std::cout << "logHyp" << std::endl << logHyp << std::endl;
 				// input
 				// pX (nxd): training inputs
 				// logHyp: log hyperparameters
@@ -86,10 +86,10 @@ namespace GPOM{
 
 				// number of training data
 				const int n = getN();
-				std::cout << "n = " << n << std::endl;
-				std::cout << "n = " << m_n << std::endl;
-				std::cout << "nd = " << m_nd << std::endl;
-				std::cout << "d = " << m_d << std::endl;
+				//std::cout << "n = " << n << std::endl;
+				//std::cout << "n = " << m_n << std::endl;
+				//std::cout << "nd = " << m_nd << std::endl;
+				//std::cout << "d = " << m_d << std::endl;
 
 				// covariance matrix
 				MatrixPtr pK(new Matrix(n, n)); // nd(d+1)+n by nd(d+1)+n

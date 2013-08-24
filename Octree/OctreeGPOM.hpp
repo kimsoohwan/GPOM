@@ -1,14 +1,20 @@
 #ifndef OCTREE_FOR_GAUSSIAN_PROCESS
 #define OCTREE_FOR_GAUSSIAN_PROCESS
 
+#include <assert.h>
+#include <algorithm>
+using std::min;
+using std::max;
+
 #include <pcl/octree/octree_base.h>
 #include <pcl/octree/octree2buf_base.h>
-#include <pcl/octree/octree_lowmemory_base.h>
 
 #include <pcl/point_types.h>
 
 #include <pcl/octree/octree_nodes.h>
 #include <pcl/octree/octree_iterator.h>
+
+#include "util/normcdf.hpp"
 
 namespace GPOM {
 
@@ -16,14 +22,14 @@ namespace GPOM {
 	{
 	public:
 		GaussianDistribution()
-			: mean_((Scalar) 0.f), 
-			  inverseVariance_((Scalar) 0.f)
+			: m_mean((Scalar) 0.f), 
+			  m_inverseVariance((Scalar) 0.f)
 		{
 		}
 
-		GaussianDistribution(const Scalar mean, const Scalar inverseVariance)
-			: mean_(mean), 
-			  inverseVariance_(inverseVariance)
+		GaussianDistribution(const Scalar mean, const Scalar variance)
+			: m_mean(mean), 
+			  m_inverseVariance(((Scalar) 1.f) / variance)
 		{
 		}
 
@@ -32,8 +38,8 @@ namespace GPOM {
 			// Only do assignment if RHS is a different object from this.
 			if (this != &rhs)
 			{
-				mean_						= rhs.mean_;
-				inverseVariance_		= rhs.inverseVariance_;
+				m_mean						= rhs.m_mean;
+				m_inverseVariance	= rhs.m_inverseVariance;
 			}
 			return *this;
 		}
@@ -41,133 +47,571 @@ namespace GPOM {
 		// merge
 		GaussianDistribution& operator+=(const GaussianDistribution &rhs)
 		{
-			mean_						= inverseVariance_ * mean_ + rhs.inverseVariance_ * rhs.mean_;
-			inverseVariance_		+= rhs.inverseVariance_;
-			mean_						/= inverseVariance_;
+			m_mean						= m_inverseVariance * m_mean + rhs.m_inverseVariance * rhs.m_mean;
+			m_inverseVariance			+= rhs.m_inverseVariance;
+			m_mean						/= m_inverseVariance;
 			return *this;
 		}
 
-		Scalar			mean_;
-		Scalar			inverseVariance_;
+		/** \brief Return mean.
+		*  \return mean
+		* */
+		Scalar
+		getMean() const
+		{
+			return m_mean;
+		}
+
+		/** \brief Return variance.
+		*  \return variance
+		* */
+		Scalar
+		getVariance() const
+		{
+			return ((Scalar) 1.f) / m_inverseVariance;
+		}
+
+		/** \brief Return inverse variance.
+		*  \return inverse variance
+		* */
+		Scalar
+		getInverseVariance() const
+		{
+			return m_inverseVariance;
+		}
+
+		/** \brief reset */
+		void
+		reset ()
+		{
+			m_mean					= (Scalar) 0.f;
+			m_inverseVariance		= (Scalar) 0.f;
+		}
+
+	protected:
+		Scalar			m_mean;
+		Scalar			m_inverseVariance;
 	};
 
-	class OctreeGPOMLeaf : public pcl::octree::OctreeLeafAbstract<GaussianDistribution>
+	template <typename DataT>
+	class MergeContainer : public DataT
     {
     public:
+
       /** \brief Class initialization. */
-      OctreeGPOMLeaf ()
+      MergeContainer ()
       {
       }
 
       /** \brief Empty class deconstructor. */
-      ~OctreeGPOMLeaf ()
+      ~MergeContainer ()
       {
       }
 
       /** \brief deep copy function */
-      virtual OctreeNode *
+      virtual MergeContainer*
       deepCopy () const
       {
-        return (OctreeNode*) new OctreeGPOMLeaf (*this);
+        return new MergeContainer (*this);
       }
 
+		/** \brief Get size of container (number of DataT objects)
+			* \return number of DataT elements in leaf node container.
+			*/
+		size_t
+		getSize () const
+		{
+			return 0;
+		}
+
       /** \brief Read input data. Only an internal counter is increased.
-       * /param Gaussian_arg: input Gaussian distribution
+       * /param data: input Gaussian distribution
        *  */
-      virtual void
-      setData (const DataT& data_arg)
+      void
+      setData (const DataT& data)
       {
-		  m_Gaussian += data_arg;
+		  m_data += data;
       }
 
       /** \brief Returns a null pointer as this leaf node does not store any data.
-       *  \param data_arg: reference to return pointer of leaf node DataT element (will be set to 0).
+       *  \param data: reference to return pointer of leaf node DataT element (will be set to 0).
        */
-      virtual void
-      getData (const DataT*& data_arg) const
+      //void
+      ////getData (const DataT*& data) const
+      //getData (DataT &data) const
+      //{
+      //  data = &m_Gaussian;
+      //}
+		void
+      getData (DataT &data) const
       {
-        data_arg = m_Gaussian;
+        data = m_data;
+      }
+
+		const DataT&
+      getData () const
+      {
+        return m_data;
       }
 
       /** \brief Empty getData data vector implementation as this leaf node does not store any data. \
-       *  \param dataVector_arg: reference to dummy DataT vector that is extended with leaf node DataT elements.
+       *  \param dataVector: reference to dummy DataT vector that is extended with leaf node DataT elements.
        */
-      virtual void
-      getData (std::vector<DataT>& dataVector_arg) const
+      void
+      getData (std::vector<DataT>& dataVector) const
       {
-      }
-
-      /** \brief Return mean.
-       *  \return mean
-       * */
-      Scalar
-      getMean() const
-      {
-        return m_Gaussian.mean_;
-      }
-
-      /** \brief Return inverse variance.
-       *  \return sigma
-       * */
-      Scalar
-      getInverseVariance() const
-      {
-        return m_Gaussian.inverseVariance_;
       }
 
       /** \brief Empty reset leaf node implementation as this leaf node does not store any data. */
-      virtual void
+      void
       reset ()
       {
-		m_Gaussian.mean_						= (Scalar) 0.f;
-		m_Gaussian.inverseVariance_	= (Scalar) 0.f;
+			m_data.reset();
       }
 
     private:
-		GaussianDistribution	m_Gaussian;
+		DataT	m_data;
     };
 
-	template<typename PointT, typename LeafT = OctreeGPOMLeaf, typename OctreeT = pcl::octree::OctreeBase<int, LeafT> >
-    class OctreeGPOM : public OctreeT
+	//template<typename LeafT = MergeContainer<GaussianDistribution>,
+	//			typename BranchT = pcl::octree::OctreeContainerEmpty<GaussianDistribution>,
+	//		   typename OctreeT = pcl::octree::OctreeBase<GaussianDistribution, LeafT, BranchT> >
+	//class OctreeGPOM : public OctreeT
+	class OctreeGPOM : public pcl::octree::OctreeBase< GaussianDistribution, 
+																	   MergeContainer<GaussianDistribution>, 
+																	   pcl::octree::OctreeContainerEmpty<GaussianDistribution> >
     {
-      // iterators are friends
-      friend class pcl::octree::OctreeIteratorBase<int, LeafT, OctreeT> ;
-      friend class pcl::octree::OctreeDepthFirstIterator<int, LeafT, OctreeT> ;
-      friend class pcl::octree::OctreeBreadthFirstIterator<int, LeafT, OctreeT> ;
-      friend class pcl::octree::OctreeLeafNodeIterator<int, LeafT, OctreeT> ;
+	 public:
+			typedef MergeContainer<GaussianDistribution>																		LeafT;
+			typedef pcl::octree::OctreeContainerEmpty<GaussianDistribution>											BranchT;
+			typedef pcl::octree::OctreeBase< GaussianDistribution, 
+														MergeContainer<GaussianDistribution>, 
+														pcl::octree::OctreeContainerEmpty<GaussianDistribution> >		OctreeT;
+
+			// iterators are friends
+			friend class pcl::octree::OctreeIteratorBase<GaussianDistribution, OctreeT> ;
+			friend class pcl::octree::OctreeDepthFirstIterator<GaussianDistribution, OctreeT> ;
+			friend class pcl::octree::OctreeBreadthFirstIterator<GaussianDistribution, OctreeT> ;
+			friend class pcl::octree::OctreeLeafNodeIterator<GaussianDistribution, OctreeT> ;
 
       public:
-        typedef OctreeT																												Base;
-        typedef typename OctreeT::OctreeLeaf																		OctreeLeaf;
+			typedef OctreeT						Base;
+			typedef OctreeT::LeafNode			LeafNode;
+			typedef OctreeT::BranchNode		BranchNode;
 
-        // Octree iterators
-        typedef pcl::octree::OctreeDepthFirstIterator<int, LeafT, OctreeT>						Iterator;
-        typedef const pcl::octree::OctreeDepthFirstIterator<int, LeafT, OctreeT>				ConstIterator;
+			// Octree iterators
+			typedef pcl::octree::OctreeDepthFirstIterator<GaussianDistribution, OctreeT>					Iterator;
+			typedef const pcl::octree::OctreeDepthFirstIterator<GaussianDistribution, OctreeT>			ConstIterator;
 
-        typedef pcl::octree::OctreeLeafNodeIterator<int, LeafT, OctreeT>							LeafNodeIterator;
-        typedef const pcl::octree::OctreeLeafNodeIterator<int, LeafT, OctreeT>				ConstLeafNodeIterator;
+			typedef pcl::octree::OctreeLeafNodeIterator<GaussianDistribution, OctreeT>						LeafNodeIterator;
+			typedef const pcl::octree::OctreeLeafNodeIterator<GaussianDistribution, OctreeT>				ConstLeafNodeIterator;
 
-        typedef pcl::octree::OctreeDepthFirstIterator<int, LeafT, OctreeT>						DepthFirstIterator;
-        typedef const pcl::octree::OctreeDepthFirstIterator<int, LeafT, OctreeT>				ConstDepthFirstIterator;
-        typedef pcl::octree::OctreeBreadthFirstIterator<int, LeafT, OctreeT>						BreadthFirstIterator;
-        typedef const pcl::octree::OctreeBreadthFirstIterator<int, LeafT, OctreeT>			ConstBreadthFirstIterator;
+			typedef pcl::octree::OctreeDepthFirstIterator<GaussianDistribution, OctreeT>					DepthFirstIterator;
+			typedef const pcl::octree::OctreeDepthFirstIterator<GaussianDistribution, OctreeT>			ConstDepthFirstIterator;
+			typedef pcl::octree::OctreeBreadthFirstIterator<GaussianDistribution, OctreeT>					BreadthFirstIterator;
+			typedef const pcl::octree::OctreeBreadthFirstIterator<GaussianDistribution, OctreeT>			ConstBreadthFirstIterator;
 
-        /** \brief Octree pointcloud constructor.
-          * \param[in] resolution_arg octree resolution at lowest octree level
+			// public typedefs for single/double buffering
+			//typedef OctreeGPOM<LeafT, pcl::octree::OctreeBase<GaussianDistribution, LeafT> >				SingleBuffer;
+			//typedef OctreeGPOM<LeafT, pcl::octree::Octree2BufBase<GaussianDistribution, LeafT> >			DoubleBuffer;
+
+			// Boost shared pointers
+			//typedef boost::shared_ptr<OctreeGPOM<GaussianDistribution, LeafT, OctreeT> >					Ptr;
+			//typedef boost::shared_ptr<const OctreeGPOM<GaussianDistribution, LeafT, OctreeT> >			ConstPtr;
+			typedef boost::shared_ptr<OctreeGPOM>					Ptr;
+			typedef boost::shared_ptr<const OctreeGPOM>			ConstPtr;
+
+			// Eigen aligned allocator
+			typedef std::vector<pcl::PointXYZ, Eigen::aligned_allocator<pcl::PointXYZ> >											AlignedPointTVector;
+
+
+			//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			// Merge
+			//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	 public:
+			/** \brief Merge mean and inverse variance at a given point. If there is no leaf node at the point, create one.
+			  * \param[in] point position
+			  * \param[in] mean mean
+			  * \param[in] inverseVariance inverse variance
+			  */
+			void
+			mergeMeanAndVarianceAtPoint(const pcl::PointXYZ &point, const Scalar mean, const Scalar variance)
+			{
+				// make sure bounding box is big enough
+				adoptBoundingBoxToPoint (point);
+
+				// generate key
+				pcl::octree::OctreeKey key;
+				genOctreeKeyforPoint (point, key);
+
+				// merge the gaussian process to octree at key
+				this->addData(key, GaussianDistribution(mean, variance));
+			}
+
+
+			//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			// Prune
+			//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+			/** \brief Prune nodes that have high uncertainty
+			  * \param[in] varianceThreshold variance threshold
+			  */
+			unsigned int
+			pruneUncertainNodes(const Scalar varianceThreshold)
+			{
+				// variables
+				GaussianDistribution gaussian;
+				const Scalar inverseVarianceThreshold = ((Scalar) 1.f) / varianceThreshold;
+				unsigned int numNodeRemoved = 0; 
+
+				// iterator
+				LeafNodeIterator iter(*this);
+				const GaussianDistribution* pGaussian;
+				while(*++iter)
+				{
+					pGaussian = dynamic_cast<const GaussianDistribution*> (*iter);
+					if(pGaussian->getInverseVariance() < inverseVarianceThreshold)
+					{
+						removeLeaf(iter.getCurrentOctreeKey());
+						numNodeRemoved++;
+					}
+				}
+			}
+
+        /** \brief Prune nodes that have low occupancy
+          * \param[in] occupancyThreshold occupancy threshold
           */
-        OctreeGPOM (const double resolution_arg)
+			unsigned int
+			pruneUnoccupiedNodes(const Scalar occupancyThreshold)
+			{
+				// variables
+				GaussianDistribution gaussian;
+				unsigned int numNodeRemoved = 0; 
+
+				// iterator
+				LeafNodeIterator iter(*this);
+				const GaussianDistribution* pGaussian;
+				while(*++iter)
+				{
+					pGaussian = dynamic_cast<const GaussianDistribution*> (*iter);
+					if(PLSC(*pGaussian) < occupancyThreshold)
+					{
+						removeLeaf(iter.getCurrentOctreeKey());
+						numNodeRemoved++;
+					}
+				}
+			}
+
+			//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			// Check Occupied
+			//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+			/** \brief Check if voxel at given point exist.
+				* \param[in] point point to be checked
+				* \return "true" if voxel exist; "false" otherwise
+				*/
+			bool
+			isVoxelOccupiedAtPoint (const pcl::PointXYZ& point) const
+			{
+				pcl::octree::OctreeKey key;
+
+				// generate key for point
+				this->genOctreeKeyforPoint (point, key);
+
+				return (isPointWithinBoundingBox (point) && isVoxelOccupiedAtKey(key));
+			}
+
+			/** \brief Check if voxel at given point coordinates exist.
+				* \param[in] pointX X coordinate of point to be checked
+				* \param[in] pointY Y coordinate of point to be checked
+				* \param[in] pointZ Z coordinate of point to be checked
+				* \return "true" if voxel exist; "false" otherwise
+				*/
+			bool
+			isVoxelOccupiedAtPoint (const double pointX, const double pointY, const double pointZ) const
+			{
+				pcl::octree::OctreeKey key;
+
+				// generate key for point
+				this->genOctreeKeyforPoint (pointX, pointY, pointZ, key);
+
+				return isVoxelOccupiedAtKey(key);
+			}
+
+		protected:
+			/** \brief Check if voxel at given octree key.
+				* \param[in] key key to be checked
+				* \return "true" if voxel exist; "false" otherwise
+				*/
+			bool
+			isVoxelOccupiedAtKey(const pcl::octree::OctreeKey &key) const
+			{
+				// search for key in octree
+				if(LeafNode* pLeaf = this->findLeaf(key))
+				{
+					return PLSC(pLeaf->getData()) > occupancyThreshold_;
+				}
+				return false;
+			}
+
+		public:
+			/** \brief Get the mean and the inverse variance at a given leaf node iterator
+				* \param[in] iter leaf node iterator
+				* \param[in] center node center
+				* \param[out] pGaussian Gaussian distribution
+				* \return "true" if voxel exist; "false" otherwise
+			*/
+			bool
+			isVoxelOccupiedAtLeafNode(ConstLeafNodeIterator &iter, 
+											  pcl::PointXYZ &center) const
+			{
+				pcl::octree::OctreeKey key = iter.getCurrentOctreeKey();
+
+				// retreive data
+				if(isVoxelOccupiedAtKey(key))
+				{
+					genLeafNodeCenterFromOctreeKey(key, center);
+					return true;
+				}
+
+				return false;
+			}
+
+			bool
+			isVoxelOccupiedAtNode(const pcl::octree::OctreeIteratorBase &iter) const
+			{
+				if(!iter.isLeafNode()) return false;
+
+				pcl::octree::OctreeKey key = iter.getCurrentOctreeKey();
+
+				// retreive data
+				return isVoxelOccupiedAtKey(key);
+			}
+
+			/** \brief Get a pcl::PointXYZ vector of centers of all occupied voxels.
+				* \param[out] voxelCenterList results are written to this vector of pcl::PointXYZ elements
+				* \return number of occupied voxels
+				*/
+			int
+			getOccupiedVoxelCenters(AlignedPointTVector &voxelCenterList) const
+			{
+				pcl::octree::OctreeKey key;
+				key.x = key.y = key.z = 0;
+
+				voxelCenterList.clear ();
+
+				return getOccupiedVoxelCentersRecursive(this->rootNode_, key, voxelCenterList);
+			}
+
+			/** \brief Get a pcl::PointXYZ vector of centers of all occupied voxels.
+				* \param[in] occupancyThreshod occupancy threshold
+				* \param[out] voxelCenterList results are written to this vector of pcl::PointXYZ elements
+				* \return number of occupied voxels
+				*/
+			int
+			getOccupiedVoxelCenters(const Scalar occupancyThreshod, AlignedPointTVector &voxelCenterList) const
+			{
+				setOccupancyThreshold(occupancyThreshod);
+
+				pcl::octree::OctreeKey key;
+				key.x = key.y = key.z = 0;
+
+				voxelCenterList.clear ();
+
+				return getOccupiedVoxelCentersRecursive(this->rootNode_, key, voxelCenterList);
+			}
+
+			//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			// Get Gaussian Distribution
+			//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			/** \brief Get the mean and the inverse variance at a given point.
+				* \param[in] point point to be checked
+				* \param[out] pGaussian Gaussian distribution
+				* \return "true" if voxel exist; "false" otherwise
+			*/
+			bool
+			getGaussianDistribution (const pcl::PointXYZ& point, GaussianDistribution gaussian) const
+			{
+				pcl::octree::OctreeKey key;
+
+				// generate key for point
+				this->genOctreeKeyforPoint (point, key);
+
+				return (isPointWithinBoundingBox (point) && getGaussianDistribution(key, gaussian));
+			}
+
+			/** \brief Get the mean and the inverse variance at a given point.
+				* \param[in] pointX X coordinate of point to be checked
+				* \param[in] pointY Y coordinate of point to be checked
+				* \param[in] pointZ Z coordinate of point to be checked
+				* \param[out] pGaussian Gaussian distribution
+				* \return "true" if voxel exist; "false" otherwise
+			*/
+			bool
+			getGaussianDistribution(const double pointX, const double pointY, const double pointZ,
+											GaussianDistribution gaussian) const
+			{
+				pcl::octree::OctreeKey key;
+
+				// generate key for point
+				this->genOctreeKeyforPoint (pointX, pointY, pointZ, key);
+
+				return getGaussianDistribution(key, gaussian);
+			}
+
+		protected:
+			/** \brief Get the mean and the inverse variance at a given octree key.
+				* \param[in] key key to be checked
+				* \param[out] pGaussian Gaussian distribution
+				*/
+			bool
+			getGaussianDistribution(const pcl::octree::OctreeKey &key, GaussianDistribution &gaussian) const
+			{
+				// search for key in octree
+				if(LeafT* pLeaf = this->findLeaf(key))
+				{
+					gaussian = pLeaf->getData();
+					return true;
+				}
+				return false;
+			}
+
+		public:
+			/** \brief Get the mean and the inverse variance at a given leaf node iterator
+				* \param[in] iter leaf node iterator
+				* \param[in] center node center
+				* \param[out] pGaussian Gaussian distribution
+				* \return "true" if voxel exist; "false" otherwise
+			*/
+			bool
+			getGaussianDistributionAtLeafNode(ConstLeafNodeIterator &iter, 
+														 pcl::PointXYZ &center, GaussianDistribution &gaussian) const
+			{
+				pcl::octree::OctreeKey key = iter.getCurrentOctreeKey();
+
+				// retreive data
+				if(getGaussianDistribution(key, gaussian))
+				{
+					genLeafNodeCenterFromOctreeKey(key, center);
+					return true;
+				}
+
+				return false;
+			}
+
+			//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			// Get occupancy
+			//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+			/** \brief Get the occupancy at a given point.
+				* \param[in] point point to be checked
+				* \param[out] occupancy occupancy
+				* \return "true" if voxel exist; "false" otherwise
+				*/
+			bool
+			getOccupancy (const pcl::PointXYZ& point, Scalar &occupancy) const
+			{
+				pcl::octree::OctreeKey key;
+
+				// generate key for point
+				this->genOctreeKeyforPoint (point, key);
+
+				return (isPointWithinBoundingBox (point) && getOccupancy(key, occupancy));
+			}
+
+			/** \brief Get the occupancy at a given point.
+				* \param[in] pointX X coordinate of point to be checked
+				* \param[in] pointY Y coordinate of point to be checked
+				* \param[in] pointZ Z coordinate of point to be checked
+				* \param[out] occupancy occupancy
+				* \return "true" if voxel exist; "false" otherwise
+			*/
+			bool
+			getOccupancy(const double pointX, const double pointY, const double pointZ,
+							 Scalar &occupancy) const
+			{
+				pcl::octree::OctreeKey key;
+
+				// generate key for point
+				this->genOctreeKeyforPoint (pointX, pointY, pointZ, key);
+
+				return getOccupancy(key, occupancy);
+			}
+
+		protected:
+			/** \brief Get the occupancy at a given point.
+			  * \param[in] point point to be checked
+			  * \param[out] occupancy occupancy
+			  * \return "true" if voxel exist; "false" otherwise
+			  */
+			bool
+			getOccupancy (const pcl::octree::OctreeKey &key, Scalar &occupancy) const
+			{
+				// search for key in octree
+				if(LeafT* pLeaf = this->findLeaf(key))
+				{
+					occupancy = PLSC(pLeaf->getData());
+					return true;
+				}
+				return false;
+			}
+
+		public:
+			/** \brief Get the occupancy at a given leaf node iterator
+				* \param[in] iter leaf node iterator
+				* \param[in] center node center
+				* \param[out] occupancy occupancy
+				*/
+			bool
+			getOccupancyAtLeafNode(ConstLeafNodeIterator &iter, 
+											pcl::PointXYZ &center, Scalar &occupancy) const
+			{
+				pcl::octree::OctreeKey key = iter.getCurrentOctreeKey();
+
+				// retreive data
+				if(getOccupancy(key, occupancy))
+				{
+					genLeafNodeCenterFromOctreeKey(key, center);
+					return true;
+				}
+
+				return false;
+			}
+
+			//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			// Probabilistic Least Square Classification
+			//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+      protected:
+			/** \brief Calculate occupancy by probabilistic least square classification
+				* \param[in] pGaussian Gaussian distribution
+				* \return occupancy
+				*/
+			inline Scalar
+			PLSC(const GaussianDistribution &gaussian) const
+			{
+				return phi((PLSC_mean_ - gaussian.getMean()) / sqrt(gaussian.getVariance() + PLSC_variance_));
+			}
+
+			//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			// Constructor
+			//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+		public:
+        /** \brief Octree pointcloud constructor.
+          * \param[in] resolution octree resolution at lowest octree level
+          */
+        OctreeGPOM (const double resolution, 
+								  const Scalar PLSC_mean		= (Scalar) 0.05f,
+								  const Scalar PLSC_variance	= (Scalar) 0.0001f)
 			: OctreeT (), resolution_ (resolution), 
 			  minX_ (0.0f), maxX_ (resolution), 
 			  minY_ (0.0f), maxY_ (resolution), 
-			  minZ_ (0.0f), maxZ_ (resolution), 
-			  maxKeys_ (1), boundingBoxDefined_ (false).
-			  inverseVarianceThreshold_((Scalar) 0.1f),
-			  occuapancyThreshold_((Scalar) 0.5f),
-			  PLSC_mean_((Scalar) 0.05f),
-			  PLSC_variance_((Scalar) 0.0001f)
+			  minZ_ (0.0f), maxZ_ (resolution),
+			  boundingBoxDefined_ (false),
+			  occupancyThreshold_ (0.8f),
+			  PLSC_mean_(PLSC_mean),
+			  PLSC_variance_(PLSC_variance)
 		{
 			assert ( resolution > 0.0f );
-			input_ = PointCloudConstPtr ();
 		}
 
 
@@ -177,28 +621,16 @@ namespace GPOM {
 		{
 		}
 
-        // public typedefs for single/double buffering
-		typedef OctreeGPOM<PointT, LeafT, pcl::octree::OctreeBase<int, LeafT> >						SingleBuffer;
-        typedef OctreeGPOM<PointT, LeafT, pcl::octree::Octree2BufBase<int, LeafT> >				DoubleBuffer;
-        typedef OctreeGPOM<PointT, LeafT, pcl::octree::OctreeLowMemBase<int, LeafT> >		LowMem;
-
-        // Boost shared pointers
-        typedef boost::shared_ptr<OctreeGPOM<PointT, LeafT, OctreeT> >									Ptr;
-        typedef boost::shared_ptr<const OctreeGPOM<PointT, LeafT, OctreeT> >						ConstPtr;
-
-        // Eigen aligned allocator
-        typedef std::vector<PointT, Eigen::aligned_allocator<PointT> >									AlignedPointTVector;
-
         /** \brief Set/change the octree voxel resolution
-          * \param[in] resolution_arg side length of voxels at lowest tree level
+          * \param[in] resolution side length of voxels at lowest tree level
           */
         inline void
-        setResolution (double resolution_arg)
+        setResolution (double resolution)
         {
 			// octree needs to be empty to change its resolution
 			assert( this->leafCount_ == 0 );
 
-			resolution_ = resolution_arg;
+			resolution_ = resolution;
 
 			getKeyBitSize();
         }
@@ -213,7 +645,7 @@ namespace GPOM {
         }
 
         /** \brief Get the maximum depth of the octree.
-         *  \return depth_arg: maximum depth of octree
+         *  \return depth: maximum depth of octree
          * */
         inline unsigned int
         getTreeDepth () const
@@ -221,200 +653,107 @@ namespace GPOM {
 			return this->octreeDepth_;
         }
 
-        /** \brief Set/change the inverse variance threshold
-          * \param[in] inverseVarianceThreshold_arg inverse variance threshold
+        /** \brief Set/change the occupancy threshold
+          * \param[in] occupancyThreshold
           */
         inline void
-        setInverseVarianceThreshold(const Scalar inverseVarianceThreshold_arg)
+        setOccupancyThreshold(const Scalar occupancyThreshold)
         {
-			inverseVarianceThreshold_ = inverseVarianceThreshold_arg;
+			  occupancyThreshold_ = occupancyThreshold;
         }
 
-        /** \brief Get the inverse variance threshold
-          * \return inverse variance threshold
-          */
-        inline Scalar
-        getInverseVarianceThreshold() const
-        {
-			return inverseVarianceThreshold_;
-        }
-
-       /** \brief Set/change the inverse variance threshold
-          * \param[in] variance_arg variance threshold
-          */
-        inline void
-        setOccupancyThreshold(const Scalar occupancyThreshold_arg)
-        {
-			occuapancyThreshold_ = occupancyThreshold_arg;
-        }
-
-        /** \brief Get the variance threshold
-          * \return variance threshold
+        /** \brief Get the occupancy threshold
+          * \return occupancy threshold
           */
         inline Scalar
         getOccupancyThreshold() const
         {
-			return occuapancyThreshold_;
+			  return occupancyThreshold_;
         }
 
        /** \brief Set/change the probabilistic least squre classification parameters
-          * \param[in] PLSC_mean_arg mean
-          * \param[in] PLSC_variance_arg variance
+          * \param[in] PLSC_mean mean
+          * \param[in] PLSC_variance variance
           */
         inline void
-        setPLSCParameters(const Scalar PLSC_mean_arg, const Scalar PLSC_variance_arg)
+        setPLSCParameters(const Scalar PLSC_mean, const Scalar PLSC_variance)
         {
-			PLSC_mean_		= PLSC_mean_arg;
-			PLSC_variance_	= PLSC_variance_arg;
+			PLSC_mean_		= PLSC_mean;
+			PLSC_variance_	= PLSC_variance;
         }
 
         /** \brief Get the probabilistic least squre classification parameters
-          * \param[out] PLSC_mean_arg mean
-          * \param[out] PLSC_variance_arg variance
+          * \param[out] PLSC_mean mean
+          * \param[out] PLSC_variance variance
           */
         inline void
-        getOccupancyThreshold(Scalar &PLSC_mean_arg, Scalar &PLSC_variance_arg) const
+        getOccupancyThreshold(Scalar &PLSC_mean, Scalar &PLSC_variance) const
         {
-			PLSC_mean_arg			= PLSC_mean_;
-			PLSC_variance_arg		= PLSC_variance_;
+			PLSC_mean			= PLSC_mean_;
+			PLSC_variance		= PLSC_variance_;
         }
 
-        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        // Merge
-        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-        /** \brief Merge mean and inverse variance at a given point. If there is no leaf node at the point, create one.
-          * \param[in] point_arg position
-          * \param[in] mean mean
-          * \param[in] inverseVariance inverse variance
-          */
-        void
-		mergeMeanAndInverseVarianceAtPoint(const PointT &point_arg, const Scalar mean, const Scalar inverseVariance)
-		{
-			// make sure bounding box is big enough
-			adoptBoundingBoxToPoint (point_arg);
-
-			// generate key
-			OctreeKey key;
-			genOctreeKeyforPoint (point, key);
-
-			// merge the gaussian process to octree at key
-			this->add(key, GaussianDistribution(mean, inverseVariance));
-
-			// prune
-			if(LeafT* pLeaf = this->findLeaf(key) && pLeaf->getInverseVariance() < inverseVarianceThreshold_)
-			{
-				removeLeaf (key);
-			}
-		}
-
-
-        /** \brief Check if voxel at given point exist.
-          * \param[in] point_arg point to be checked
-          * \return "true" if voxel exist; "false" otherwise
-          */
-        bool
-        isVoxelOccupiedAtPoint (const PointT& point_arg) const
-		{
-			OctreeKey key;
-
-			// generate key for point
-			this->genOctreeKeyforPoint (point_arg, key);
-
-			return isVoxelOccupiedAtKey(key);
-		}
-
-
-        /** \brief Check if voxel at given point coordinates exist.
-          * \param[in] pointX_arg X coordinate of point to be checked
-          * \param[in] pointY_arg Y coordinate of point to be checked
-          * \param[in] pointZ_arg Z coordinate of point to be checked
-          * \return "true" if voxel exist; "false" otherwise
-          */
-        bool
-        isVoxelOccupiedAtPoint (const double pointX_arg, const double pointY_arg, const double pointZ_arg) const
-		{
-			OctreeKey key;
-
-			// generate key for point
-			this->genOctreeKeyforPoint (pointX_arg, pointY_arg, pointZ_arg, key);
-
-			return isVoxelOccupiedAtKey(key);
-		}
-
-
-        /** \brief Get a PointT vector of centers of all occupied voxels.
-          * \param[out] voxelCenterList_arg results are written to this vector of PointT elements
-          * \return number of occupied voxels
-          */
-        int
-        getOccupiedVoxelCenters (AlignedPointTVector &voxelCenterList_arg) const
-		{
-			OctreeKey key;
-			key.x = key.y = key.z = 0;
-
-			voxelCenterList_arg.clear ();
-
-			return getOccupiedVoxelCentersRecursive (this->rootNode_, key, voxelCenterList_arg);
-		}
-
-        /** \brief Get a PointT vector of centers of voxels intersected by a line segment.
+        /** \brief Get a pcl::PointXYZ vector of centers of voxels intersected by a line segment.
           * This returns a approximation of the actual intersected voxels by walking
           * along the line with small steps. Voxels are ordered, from closest to
           * furthest w.r.t. the origin.
           * \param[in] origin origin of the line segment
           * \param[in] end end of the line segment
-          * \param[out] voxel_center_list results are written to this vector of PointT elements
+          * \param[out] voxel_center_list results are written to this vector of pcl::PointXYZ elements
           * \param[in] precision determines the size of the steps: step_size = octree_resolution x precision
           * \return number of intersected voxels
           */
         int
-        getApproxIntersectedVoxelCentersBySegment (const Eigen::Vector3f& origin, const Eigen::Vector3f& end,
-																						   AlignedPointTVector &voxel_center_list,
-																						   float precision = 0.2)
+        getApproxIntersectedVoxelCentersBySegment (const Eigen::Vector3f& origin, 
+																	const Eigen::Vector3f& end,
+																	AlignedPointTVector &voxel_center_list,
+																	float precision)
 		{
 			Eigen::Vector3f direction = end - origin;
 			float norm = direction.norm ();
 			direction.normalize ();
 
-			const float step_size = (const float)resolution_ * precision;
+			const float step_size = static_cast<const float> (resolution_) * precision;
 
 			// Ensure we get at least one step for the first voxel.
-			const int nsteps = std::max (1, (int) (norm / step_size));
+			const int nsteps = std::max (1, static_cast<int> (norm / step_size));
 
-			OctreeKey prev_key;
-			prev_key.x = prev_key.y = prev_key.z = -1;
+			pcl::octree::OctreeKey prev_key;
+
+			bool bkeyDefined = false;
 
 			// Walk along the line segment with small steps.
 			for (int i = 0; i < nsteps; ++i)
 			{
-				Eigen::Vector3f p = origin + (direction * step_size * (const float)i);
+				Eigen::Vector3f p = origin + (direction * step_size * static_cast<const float> (i));
 
-				PointT octree_p;
+				pcl::PointXYZ octree_p;
 				octree_p.x = p.x ();
 				octree_p.y = p.y ();
 				octree_p.z = p.z ();
 
-				OctreeKey key;
+				pcl::octree::OctreeKey key;
 				this->genOctreeKeyforPoint (octree_p, key);
 
 				// Not a new key, still the same voxel.
-				if (key == prev_key)
+				if ((key == prev_key) && (bkeyDefined) )
 				  continue;
 
 				prev_key = key;
+				bkeyDefined = true;
 
 				// check if it is occupied
 				if(isVoxelOccupiedAtKey(key))
 				{
-					PointT center;
+					pcl::PointXYZ center;
 					genLeafNodeCenterFromOctreeKey (key, center);
 					voxel_center_list.push_back (center);
 				}
 			}
 
-			OctreeKey end_key;
-			PointT end_p;
+			pcl::octree::OctreeKey end_key;
+			pcl::PointXYZ end_p;
 			end_p.x = end.x ();
 			end_p.y = end.y ();
 			end_p.z = end.z ();
@@ -424,26 +763,26 @@ namespace GPOM {
 				// check if it is occupied
 				if(isVoxelOccupiedAtKey(end_key))
 				{
-					PointT center;
+					pcl::PointXYZ center;
 					genLeafNodeCenterFromOctreeKey (end_key, center);
 					voxel_center_list.push_back (center);
 				}
 			}
-
-			return ((int)voxel_center_list.size ());
+			
+			return (static_cast<int> (voxel_center_list.size ()));
 		}
 
 
         /** \brief Delete leaf node / voxel at given point
-          * \param[in] point_arg point addressing the voxel to be deleted.
+          * \param[in] point point addressing the voxel to be deleted.
           */
         void
-        deleteVoxelAtPoint (const PointT& point_arg)
+        deleteVoxelAtPoint (const pcl::PointXYZ& point)
 		{
-			OctreeKey key;
+			pcl::octree::OctreeKey key;
 
 			// generate key for point
-			this->genOctreeKeyforPoint (point_arg, key);
+			this->genOctreeKeyforPoint (point, key);
 
 			this->removeLeaf (key);
 		}
@@ -455,7 +794,6 @@ namespace GPOM {
         {
           // reset bounding box
           minX_ = minY_ = maxY_ = minZ_ = maxZ_ = 0;
-          maxKeys_ = 1;
           this->boundingBoxDefined_ = false;
 
           OctreeT::deleteTree ();
@@ -467,32 +805,32 @@ namespace GPOM {
 
         /** \brief Define bounding box for octree
           * \note Bounding box cannot be changed once the octree contains elements.
-          * \param[in] minX_arg X coordinate of lower bounding box corner
-          * \param[in] minY_arg Y coordinate of lower bounding box corner
-          * \param[in] minZ_arg Z coordinate of lower bounding box corner
-          * \param[in] maxX_arg X coordinate of upper bounding box corner
-          * \param[in] maxY_arg Y coordinate of upper bounding box corner
-          * \param[in] maxZ_arg Z coordinate of upper bounding box corner
+          * \param[in] minX X coordinate of lower bounding box corner
+          * \param[in] minY Y coordinate of lower bounding box corner
+          * \param[in] minZ Z coordinate of lower bounding box corner
+          * \param[in] maxX X coordinate of upper bounding box corner
+          * \param[in] maxY Y coordinate of upper bounding box corner
+          * \param[in] maxZ Z coordinate of upper bounding box corner
           */
         void
-        defineBoundingBox (const double minX_arg, const double minY_arg, const double minZ_arg, 
-											const double maxX_arg, const double maxY_arg, const double maxZ_arg)
+        defineBoundingBox (const double minX, const double minY, const double minZ, 
+									const double maxX, const double maxY, const double maxZ)
 		{
 			// bounding box cannot be changed once the octree contains elements
 			assert (this->leafCount_ == 0);
 
-			assert (maxX_arg >= minX_arg);
-			assert (maxY_arg >= minY_arg);
-			assert (maxZ_arg >= minZ_arg);
+			assert (maxX >= minX);
+			assert (maxY >= minY);
+			assert (maxZ >= minZ);
 
-			minX_ = minX_arg;
-			maxX_ = maxX_arg;
+			minX_ = minX;
+			maxX_ = maxX;
 
-			minY_ = minY_arg;
-			maxY_ = maxY_arg;
+			minY_ = minY;
+			maxY_ = maxY;
 
-			minZ_ = minZ_arg;
-			maxZ_ = maxZ_arg;
+			minZ_ = minZ;
+			maxZ_ = maxZ;
 
 			minX_ = min (minX_, maxX_);
 			minY_ = min (minY_, maxY_);
@@ -511,28 +849,28 @@ namespace GPOM {
         /** \brief Define bounding box for octree
           * \note Lower bounding box point is set to (0, 0, 0)
           * \note Bounding box cannot be changed once the octree contains elements.
-          * \param[in] maxX_arg X coordinate of upper bounding box corner
-          * \param[in] maxY_arg Y coordinate of upper bounding box corner
-          * \param[in] maxZ_arg Z coordinate of upper bounding box corner
+          * \param[in] maxX X coordinate of upper bounding box corner
+          * \param[in] maxY Y coordinate of upper bounding box corner
+          * \param[in] maxZ Z coordinate of upper bounding box corner
           */
         void
-        defineBoundingBox (const double maxX_arg, const double maxY_arg, const double maxZ_arg)
+        defineBoundingBox (const double maxX, const double maxY, const double maxZ)
 		{
 			// bounding box cannot be changed once the octree contains elements
 			assert (this->leafCount_ == 0);
 
-			assert (maxX_arg >= 0.0f);
-			assert (maxY_arg >= 0.0f);
-			assert (maxZ_arg >= 0.0f);
+			assert (maxX >= 0.0f);
+			assert (maxY >= 0.0f);
+			assert (maxZ >= 0.0f);
 
 			minX_ = 0.0f;
-			maxX_ = maxX_arg;
+			maxX_ = maxX;
 
 			minY_ = 0.0f;
-			maxY_ = maxY_arg;
+			maxY_ = maxY;
 
 			minZ_ = 0.0f;
-			maxZ_ = maxZ_arg;
+			maxZ_ = maxZ;
 
 			minX_ = min (minX_, maxX_);
 			minY_ = min (minY_, maxY_);
@@ -551,24 +889,24 @@ namespace GPOM {
         /** \brief Define bounding box cube for octree
           * \note Lower bounding box corner is set to (0, 0, 0)
           * \note Bounding box cannot be changed once the octree contains elements.
-          * \param[in] cubeLen_arg side length of bounding box cube.
+          * \param[in] cubeLen side length of bounding box cube.
           */
         void
-        defineBoundingBox (const double cubeLen_arg)
+        defineBoundingBox (const double cubeLen)
 		{
 			// bounding box cannot be changed once the octree contains elements
 			assert (this->leafCount_ == 0);
 
-			assert (cubeLen_arg >= 0.0f);
+			assert (cubeLen >= 0.0f);
 
 			minX_ = 0.0f;
-			maxX_ = cubeLen_arg;
+			maxX_ = cubeLen;
 
 			minY_ = 0.0f;
-			maxY_ = cubeLen_arg;
+			maxY_ = cubeLen;
 
 			minZ_ = 0.0f;
-			maxZ_ = cubeLen_arg;
+			maxZ_ = cubeLen;
 
 			minX_ = min (minX_, maxX_);
 			minY_ = min (minY_, maxY_);
@@ -586,35 +924,35 @@ namespace GPOM {
 
         /** \brief Get bounding box for octree
           * \note Bounding box cannot be changed once the octree contains elements.
-          * \param[in] minX_arg X coordinate of lower bounding box corner
-          * \param[in] minY_arg Y coordinate of lower bounding box corner
-          * \param[in] minZ_arg Z coordinate of lower bounding box corner
-          * \param[in] maxX_arg X coordinate of upper bounding box corner
-          * \param[in] maxY_arg Y coordinate of upper bounding box corner
-          * \param[in] maxZ_arg Z coordinate of upper bounding box corner
+          * \param[in] minX X coordinate of lower bounding box corner
+          * \param[in] minY Y coordinate of lower bounding box corner
+          * \param[in] minZ Z coordinate of lower bounding box corner
+          * \param[in] maxX X coordinate of upper bounding box corner
+          * \param[in] maxY Y coordinate of upper bounding box corner
+          * \param[in] maxZ Z coordinate of upper bounding box corner
           */
         void
-        getBoundingBox (double& minX_arg, double& minY_arg, double& minZ_arg, 
-									   double& maxX_arg, double& maxY_arg, double& maxZ_arg) const
+        getBoundingBox (double& minX, double& minY, double& minZ, 
+									   double& maxX, double& maxY, double& maxZ) const
 		{
-			minX_arg = minX_;
-			minY_arg = minY_;
-			minZ_arg = minZ_;
+			minX = minX_;
+			minY = minY_;
+			minZ = minZ_;
 
-			maxX_arg = maxX_;
-			maxY_arg = maxY_;
-			maxZ_arg = maxZ_;
+			maxX = maxX_;
+			maxY = maxY_;
+			maxZ = maxZ_;
 		}
 
         /** \brief Calculates the squared diameter of a voxel at given tree depth
-          * \param[in] treeDepth_arg depth/level in octree
+          * \param[in] treeDepth depth/level in octree
           * \return squared diameter
           */
         double
-        getVoxelSquaredDiameter (unsigned int treeDepth_arg) const
+        getVoxelSquaredDiameter (unsigned int treeDepth) const
 		{
 			// return the squared side length of the voxel cube as a function of the octree depth
-			return (getVoxelSquaredSideLen (treeDepth_arg) * 3);
+			return (getVoxelSquaredSideLen (treeDepth) * 3);
 		}
 
         /** \brief Calculates the squared diameter of a voxel at leaf depth
@@ -627,16 +965,16 @@ namespace GPOM {
         }
 
         /** \brief Calculates the squared voxel cube side length at given tree depth
-          * \param[in] treeDepth_arg depth/level in octree
+          * \param[in] treeDepth depth/level in octree
           * \return squared voxel cube side length
           */
         double
-        getVoxelSquaredSideLen (unsigned int treeDepth_arg) const
+        getVoxelSquaredSideLen (unsigned int treeDepth) const
 		{
 			double sideLen;
 
 			// side length of the voxel cube increases exponentially with the octree depth
-			sideLen = this->resolution_ * (double)(1 << (this->octreeDepth_ - treeDepth_arg));
+			sideLen = this->resolution_ * static_cast<double>(1 << (this->octreeDepth_ - treeDepth));
 
 			// squared voxel side length
 			sideLen *= sideLen;
@@ -660,47 +998,25 @@ namespace GPOM {
          * \param[out] max_pt upper bound of voxel
          */
         inline void
-        getVoxelBounds (OctreeIteratorBase<int,LeafT,OctreeT>& iterator, Eigen::Vector3f &min_pt, Eigen::Vector3f &max_pt)
+			getVoxelBounds (pcl::octree::OctreeIteratorBase<GaussianDistribution, OctreeT>& iterator, 
+								 Eigen::Vector3f &min_pt, 
+								 Eigen::Vector3f &max_pt)
         {
-			this->genVoxelBoundsFromOctreeKey (iterator.getCurrentOctreeKey(), iterator.getCurrentOctreeDepth(), min_pt, max_pt);
+			  this->genVoxelBoundsFromOctreeKey(iterator.getCurrentOctreeKey(), 
+															iterator.getCurrentOctreeDepth(), 
+															min_pt, max_pt);
         }
 
 
       protected:
-
-        /** \brief Check if voxel at given octree key.
-          * \param[in] key_arg key to be checked
-          * \return "true" if voxel exist; "false" otherwise
-          */
-        bool
-        isVoxelOccupiedAtKey(const OctreeKey &key_arg) const
-		{
-			// search for key in octree
-			if(LeafT* pLeaf = this->findLeaf(key))
-			{
-				// mean and variance
-				Scalar mean						= pLeaf->getMean();
-				Scalar variance					= ((Scalar) 1.f) / pLeaf->getInverseVariance();
-
-				// probabilistic least square classification
-				// int \Phi(y*(x-m)/v) \mathcal{N}(x; mu, s2) dx = \Phi(y*(mu - m)/(v*sqrt(1+s2/v^2)))
-				Scalar occupancy = normcdf(((Scalar) -1.f) * (mean - PLSC_mean_) / sqrt(variance + PLSC_variance_));
-
-				return occupancy > occupancyThreshold_;
-			}
-
-			return false;
-		}
-
-
         /** \brief Find octree leaf node at a given point
-          * \param[in] point_arg query point
+          * \param[in] point query point
           * \return pointer to leaf node. If leaf node does not exist, pointer is 0.
           */
         LeafT*
-        findLeafAtPoint (const PointT& point_arg) const 
+        findLeafAtPoint (const pcl::PointXYZ& point) const 
 		{
-			OctreeKey key;
+			pcl::octree::OctreeKey key;
 
 			// generate key for point
 			this->genOctreeKeyforPoint (point, key);
@@ -711,9 +1027,6 @@ namespace GPOM {
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         // Protected octree methods based on octree keys
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-        typedef typename OctreeT::OctreeKey				OctreeKey;
-        typedef typename OctreeT::OctreeBranch			OctreeBranch;
 
         /** \brief Define octree key setting and octree depth based on defined bounding box. */
         void
@@ -730,21 +1043,20 @@ namespace GPOM {
 			const float minValue = std::numeric_limits<float>::epsilon();
 
 			// find maximum key values for x, y, z
-			maxKeyX = (unsigned int)((maxX_ - minX_) / resolution_);
-			maxKeyY = (unsigned int)((maxY_ - minY_) / resolution_);
-			maxKeyZ = (unsigned int)((maxZ_ - minZ_) / resolution_);
+			maxKeyX = static_cast<unsigned int> ((maxX_ - minX_) / resolution_);
+			maxKeyY = static_cast<unsigned int> ((maxY_ - minY_) / resolution_);
+			maxKeyZ = static_cast<unsigned int> ((maxZ_ - minZ_) / resolution_);
 
 			// find maximum amount of keys
-			maxVoxels = max (max (max (maxKeyX, maxKeyY), maxKeyZ), (unsigned int)2);
+			maxVoxels = max (max (max (maxKeyX, maxKeyY), maxKeyZ), static_cast<unsigned int> (2));
 
 
 			// tree depth == amount of bits of maxVoxels
-			this->octreeDepth_ = max ((min ((unsigned int)OCT_MAXTREEDEPTH, 
-																	 (unsigned int)ceil (this->Log2 (maxVoxels)-minValue))), (unsigned int)0);
+			this->octreeDepth_ = max ((min (static_cast<unsigned int> (OCT_MAXTREEDEPTH), 
+													  static_cast<unsigned int> (ceil (this->Log2 (maxVoxels)-minValue)))),
+												static_cast<unsigned int> (0));
 
-			maxKeys_ = (1 << this->octreeDepth_);
-
-			octreeSideLen = (double)maxKeys_ * resolution_-minValue;
+			octreeSideLen = static_cast<double> (1 << this->octreeDepth_) * resolution_-minValue;
 
 			if (this->leafCount_ == 0)
 			{
@@ -775,48 +1087,57 @@ namespace GPOM {
 			this->setTreeDepth (this->octreeDepth_);
 		}
 
+        /** \brief Checks if given point is within the bounding box of the octree
+         * \param[in] pointIdx_arg point to be checked for bounding box violations
+         * \return "true" - no bound violation
+         */
+        inline bool isPointWithinBoundingBox (const pcl::PointXYZ& point) const
+        {
+          return (! ( (point.x <  minX_) || (point.y <  minY_) || (point.z <  minZ_) ||
+				          (point.x >= maxX_) || (point.y >= maxY_) || (point.z >= maxZ_)));
+        }
+
         /** \brief Grow the bounding box/octree until point fits
-          * \param[in] pointIdx_arg point that should be within bounding box;
+          * \param[in] point point that should be within bounding box;
           */
         void
-        adoptBoundingBoxToPoint (const PointT& pointIdx_arg)
+        adoptBoundingBoxToPoint (const pcl::PointXYZ& point)
 		{
 			const float minValue = std::numeric_limits<float>::epsilon();
 
 			// increase octree size until point fits into bounding box
 			while (true)
 			{
-				bool bLowerBoundViolationX = (pointIdx_arg.x < minX_);
-				bool bLowerBoundViolationY = (pointIdx_arg.y < minY_);
-				bool bLowerBoundViolationZ = (pointIdx_arg.z < minZ_);
+				bool bLowerBoundViolationX = (point.x < minX_);
+				bool bLowerBoundViolationY = (point.y < minY_);
+				bool bLowerBoundViolationZ = (point.z < minZ_);
 
-				bool bUpperBoundViolationX = (pointIdx_arg.x >= maxX_);
-				bool bUpperBoundViolationY = (pointIdx_arg.y >= maxY_);
-				bool bUpperBoundViolationZ = (pointIdx_arg.z >= maxZ_);
+				bool bUpperBoundViolationX = (point.x >= maxX_);
+				bool bUpperBoundViolationY = (point.y >= maxY_);
+				bool bUpperBoundViolationZ = (point.z >= maxZ_);
 
 				// do we violate any bounds?
 				if (bLowerBoundViolationX || bLowerBoundViolationY || bLowerBoundViolationZ || 
-					bUpperBoundViolationX	|| bUpperBoundViolationY || bUpperBoundViolationZ || 
-					(!boundingBoxDefined_))
+					bUpperBoundViolationX	|| bUpperBoundViolationY || bUpperBoundViolationZ)
 				{
-					double octreeSideLen;
-					unsigned char childIdx;
-
-					if (this->leafCount_ > 0)
+					if (boundingBoxDefined_)
 					{
+						double octreeSideLen;
+						unsigned char childIdx;
+
 						// octree not empty - we add another tree level and thus increase its size by a factor of 2*2*2
-						childIdx = ((!bUpperBoundViolationX) << 2) | ((!bUpperBoundViolationY) << 1) | ((!bUpperBoundViolationZ));
+						childIdx = static_cast<unsigned char> (((!bUpperBoundViolationX) << 2) | ((!bUpperBoundViolationY) << 1) | ((!bUpperBoundViolationZ)));
 
-						OctreeBranch* newRootBranch;
+						BranchNode* newRootBranch;
 
-						this->createBranch (newRootBranch);
+						newRootBranch = this->branchNodePool_.popNode();
 						this->branchCount_++;
 
-						this->setBranchChild (*newRootBranch, childIdx, this->rootNode_);
+						this->setBranchChildPtr (*newRootBranch, childIdx, this->rootNode_);
 
 						this->rootNode_ = newRootBranch;
 
-						octreeSideLen = (double)maxKeys_ * resolution_ ;
+						octreeSideLen = static_cast<double> (1 << this->octreeDepth_) * resolution_;
 
 						if (!bUpperBoundViolationX)				  minX_ -= octreeSideLen;
 						if (!bUpperBoundViolationY)				  minY_ -= octreeSideLen;
@@ -825,31 +1146,32 @@ namespace GPOM {
 						// configure tree depth of octree
 						this->octreeDepth_ ++;
 						this->setTreeDepth (this->octreeDepth_);
-						maxKeys_ = (1 << this->octreeDepth_);
 
 						// recalculate bounding box width
-						octreeSideLen = (double)maxKeys_ * resolution_ - minValue;
+						octreeSideLen = static_cast<double> (1 << this->octreeDepth_) * resolution_ - minValue;
 
 						// increase octree bounding box
 						maxX_ = minX_ + octreeSideLen;
 						maxY_ = minY_ + octreeSideLen;
 						maxZ_ = minZ_ + octreeSideLen;
 					}
+					// bounding box is not defined - set it to point position
 					else
 					{
 						// octree is empty - we set the center of the bounding box to our first pixel
-						this->minX_ = pointIdx_arg.x - this->resolution_ / 2;
-						this->minY_ = pointIdx_arg.y - this->resolution_ / 2;
-						this->minZ_ = pointIdx_arg.z - this->resolution_ / 2;
+						this->minX_ = point.x - this->resolution_ / 2;
+						this->minY_ = point.y - this->resolution_ / 2;
+						this->minZ_ = point.z - this->resolution_ / 2;
 
-						this->maxX_ = pointIdx_arg.x + this->resolution_ / 2;
-						this->maxY_ = pointIdx_arg.y + this->resolution_ / 2;
-						this->maxZ_ = pointIdx_arg.z + this->resolution_ / 2;
+						this->maxX_ = point.x + this->resolution_ / 2;
+						this->maxY_ = point.y + this->resolution_ / 2;
+						this->maxZ_ = point.z + this->resolution_ / 2;
 
 						getKeyBitSize();
+						
+						boundingBoxDefined_ = true;
 					}
 
-					boundingBoxDefined_ = true;
 				}
 				else
 					// no bound violations anymore - leave while loop
@@ -858,114 +1180,98 @@ namespace GPOM {
 		}
 
         /** \brief Generate octree key for voxel at a given point
-          * \param[in] point_arg the point addressing a voxel
-          * \param[out] key_arg write octree key to this reference
+          * \param[in] point the point addressing a voxel
+          * \param[out] key write octree key to this reference
           */
         void
-        genOctreeKeyforPoint (const PointT & point_arg, OctreeKey &key_arg) const
+        genOctreeKeyforPoint (const pcl::PointXYZ & point, pcl::octree::OctreeKey &key) const
 		{
 			// calculate integer key for point coordinates
-			key_arg.x = min ((unsigned int)((point_arg.x - this->minX_) / this->resolution_), maxKeys_ - 1);
-			key_arg.y = min ((unsigned int)((point_arg.y - this->minY_) / this->resolution_), maxKeys_ - 1);
-			key_arg.z = min ((unsigned int)((point_arg.z - this->minZ_) / this->resolution_), maxKeys_ - 1);
+			key.x = static_cast<unsigned int> ((point.x - this->minX_) / this->resolution_);
+			key.y = static_cast<unsigned int> ((point.y - this->minY_) / this->resolution_);
+			key.z = static_cast<unsigned int> ((point.z - this->minZ_) / this->resolution_);
 		}
 
         /** \brief Generate octree key for voxel at a given point
-          * \param[in] pointX_arg X coordinate of point addressing a voxel
-          * \param[in] pointY_arg Y coordinate of point addressing a voxel
-          * \param[in] pointZ_arg Z coordinate of point addressing a voxel
-          * \param[out] key_arg write octree key to this reference
+          * \param[in] pointX X coordinate of point addressing a voxel
+          * \param[in] pointY Y coordinate of point addressing a voxel
+          * \param[in] pointZ Z coordinate of point addressing a voxel
+          * \param[out] key write octree key to this reference
           */
         void
-        genOctreeKeyforPoint (const double pointX_arg, const double pointY_arg, const double pointZ_arg,
-												 OctreeKey & key_arg) const
+        genOctreeKeyforPoint (const double pointX, const double pointY, const double pointZ,
+												 pcl::octree::OctreeKey & key) const
 		{
-			PointT tempPoint;
+			pcl::PointXYZ tempPoint;
 
-			tempPoint.x = (float)pointX_arg;
-			tempPoint.y = (float)pointY_arg;
-			tempPoint.z = (float)pointZ_arg;
+			tempPoint.x = static_cast<float> (pointX);
+			tempPoint.y = static_cast<float> (pointY);
+			tempPoint.z = static_cast<float> (pointZ);
 
 			// generate key for point
-			genOctreeKeyforPoint (tempPoint, key_arg);
+			genOctreeKeyforPoint (tempPoint, key);
 		}
 
-        /** \brief Virtual method for generating octree key for a given point index.
-          * \note This method enables to assign indices to leaf nodes during octree deserialization.
-          * \param[in] data_arg index value representing a point in the dataset given by \a setInputCloud
-          * \param[out] key_arg write octree key to this reference
-          * \return "true" - octree keys are assignable
-          */
-        virtual bool
-        genOctreeKeyForDataT (const int& data_arg, OctreeKey & key_arg) const
-		{
-			const PointT tempPoint = getPointByIndex (data_arg);
-
-			// generate key for point
-			genOctreeKeyforPoint (tempPoint, key_arg);
-
-			return (true);
-		}
 
         /** \brief Generate a point at center of leaf node voxel
-          * \param[in] key_arg octree key addressing a leaf node.
-          * \param[out] point_arg write leaf node voxel center to this point reference
+          * \param[in] key octree key addressing a leaf node.
+          * \param[out] point write leaf node voxel center to this point reference
           */
         void
-        genLeafNodeCenterFromOctreeKey (const OctreeKey & key_arg, PointT& point_arg) const
+        genLeafNodeCenterFromOctreeKey (const pcl::octree::OctreeKey & key, pcl::PointXYZ& point) const
 		{
 			// define point to leaf node voxel center
-			point.x = (float)(((double)key.x + 0.5f) * this->resolution_ + this->minX_);
-			point.y = (float)(((double)key.y + 0.5f) * this->resolution_ + this->minY_);
-			point.z = (float)(((double)key.z + 0.5f) * this->resolution_ + this->minZ_);
+			point.x = static_cast<float> ((static_cast<double> (key.x) + 0.5f) * this->resolution_ + this->minX_);
+			point.y = static_cast<float> ((static_cast<double> (key.y) + 0.5f) * this->resolution_ + this->minY_);
+			point.z = static_cast<float> ((static_cast<double> (key.z) + 0.5f) * this->resolution_ + this->minZ_);
 		}
 
         /** \brief Generate a point at center of octree voxel at given tree level
-          * \param[in] key_arg octree key addressing an octree node.
-          * \param[in] treeDepth_arg octree depth of query voxel
-          * \param[out] point_arg write leaf node center point to this reference
+          * \param[in] key octree key addressing an octree node.
+          * \param[in] treeDepth octree depth of query voxel
+          * \param[out] point write leaf node center point to this reference
           */
         void
-        genVoxelCenterFromOctreeKey (const OctreeKey & key_arg, unsigned int treeDepth_arg, PointT& point_arg) const
+        genVoxelCenterFromOctreeKey (const pcl::octree::OctreeKey & key, unsigned int treeDepth, pcl::PointXYZ& point) const
 		{
 			// generate point for voxel center defined by treedepth (bitLen) and key
-			point_arg.x = (float)(((double)(key_arg.x) + 0.5f) * (this->resolution_ * (double)(1 << (this->octreeDepth_  - treeDepth_arg))) + this->minX_);
-			point_arg.y = (float)(((double)(key_arg.y) + 0.5f) * (this->resolution_ * (double)(1 << (this->octreeDepth_  - treeDepth_arg))) + this->minY_);
-			point_arg.z = (float)(((double)(key_arg.z) + 0.5f) * (this->resolution_ * (double)(1 << (this->octreeDepth_  - treeDepth_arg))) + this->minZ_);
+			point.x = static_cast<float> ((static_cast <double> (key.x) + 0.5f) * (this->resolution_ * static_cast<double> (1 << (this->octreeDepth_ - treeDepth))) + this->minX_);
+			point.y = static_cast<float> ((static_cast <double> (key.y) + 0.5f) * (this->resolution_ * static_cast<double> (1 << (this->octreeDepth_ - treeDepth))) + this->minY_);
+			point.z = static_cast<float> ((static_cast <double> (key.z) + 0.5f) * (this->resolution_ * static_cast<double> (1 << (this->octreeDepth_ - treeDepth))) + this->minZ_);
 		}
 
         /** \brief Generate bounds of an octree voxel using octree key and tree depth arguments
-          * \param[in] key_arg octree key addressing an octree node.
-          * \param[in] treeDepth_arg octree depth of query voxel
+          * \param[in] key octree key addressing an octree node.
+          * \param[in] treeDepth octree depth of query voxel
           * \param[out] min_pt lower bound of voxel
           * \param[out] max_pt upper bound of voxel
           */
         void
-        genVoxelBoundsFromOctreeKey (const OctreeKey & key_arg, unsigned int treeDepth_arg, Eigen::Vector3f &min_pt,
+        genVoxelBoundsFromOctreeKey (const pcl::octree::OctreeKey & key, unsigned int treeDepth, Eigen::Vector3f &min_pt,
 																	Eigen::Vector3f &max_pt) const
 		{
 			// calculate voxel size of current tree depth
-			double voxel_side_len = this->resolution_ * (double)(1 << (this->octreeDepth_ - treeDepth_arg));
+			double voxel_side_len = this->resolution_ * static_cast<double> (1 << (this->octreeDepth_ - treeDepth));
 
 			// calculate voxel bounds
-			min_pt (0) = (float)((double)(key_arg.x) * voxel_side_len + this->minX_);
-			min_pt (1) = (float)((double)(key_arg.y) * voxel_side_len + this->minY_);
-			min_pt (2) = (float)((double)(key_arg.z) * voxel_side_len + this->minZ_);
+			min_pt (0) = static_cast<float> (static_cast<double> (key.x) * voxel_side_len + this->minX_);
+			min_pt (1) = static_cast<float> (static_cast<double> (key.y) * voxel_side_len + this->minY_);
+			min_pt (2) = static_cast<float> (static_cast<double> (key.z) * voxel_side_len + this->minZ_);
 
-			max_pt (0) = (float)((double)(key_arg.x + 1) * voxel_side_len + this->minX_);
-			max_pt (1) = (float)((double)(key_arg.y + 1) * voxel_side_len + this->minY_);
-			max_pt (2) = (float)((double)(key_arg.z + 1) * voxel_side_len + this->minZ_);
+			max_pt (0) = static_cast<float> (static_cast<double> (key.x + 1) * voxel_side_len + this->minX_);
+			max_pt (1) = static_cast<float> (static_cast<double> (key.y + 1) * voxel_side_len + this->minY_);
+			max_pt (2) = static_cast<float> (static_cast<double> (key.z + 1) * voxel_side_len + this->minZ_);
 		}
 
         /** \brief Recursively search the tree for all leaf nodes and return a vector of voxel centers.
-          * \param[in] node_arg current octree node to be explored
-          * \param[in] key_arg octree key addressing a leaf node.
-          * \param[out] voxelCenterList_arg results are written to this vector of PointT elements
+          * \param[in] node current octree node to be explored
+          * \param[in] key octree key addressing a leaf node.
+          * \param[out] voxelCenterList results are written to this vector of pcl::PointXYZ elements
           * \return number of voxels found
           */
         int
-        getOccupiedVoxelCentersRecursive (const OctreeBranch* node_arg, const OctreeKey& key_arg,
-																		  std::vector<PointT, Eigen::aligned_allocator<PointT> > &voxelCenterList_arg) const
+        getOccupiedVoxelCentersRecursive (const BranchNode* node, const pcl::octree::OctreeKey& key,
+														AlignedPointTVector &voxelCenterList) const
 		{
 			// child iterator
 			unsigned char childIdx;
@@ -975,35 +1281,35 @@ namespace GPOM {
 			// iterate over all children
 			for (childIdx = 0; childIdx < 8; childIdx++)
 			{
-				if (!this->branchHasChild (*node_arg, childIdx))
+				if (!this->branchHasChild (*node, childIdx))
 					continue;
 
-				const OctreeNode * childNode;
-				childNode = this->getBranchChild (*node_arg, childIdx);
+				const pcl::octree::OctreeNode * childNode;
+				childNode = this->getBranchChildPtr (*node, childIdx);
 
 				// generate new key for current branch voxel
-				OctreeKey newKey;
-				newKey.x = (key_arg.x << 1) | (!!(childIdx & (1 << 2)));
-				newKey.y = (key_arg.y << 1) | (!!(childIdx & (1 << 1)));
-				newKey.z = (key_arg.z << 1) | (!!(childIdx & (1 << 0)));
+				pcl::octree::OctreeKey newKey;
+				newKey.x = (key.x << 1) | (!!(childIdx & (1 << 2)));
+				newKey.y = (key.y << 1) | (!!(childIdx & (1 << 1)));
+				newKey.z = (key.z << 1) | (!!(childIdx & (1 << 0)));
 
 				switch (childNode->getNodeType ())
 				{
-					case BRANCH_NODE:
+					case pcl::octree::BRANCH_NODE:
 					{
 						// recursively proceed with indexed child branch
-						voxelCount += getOccupiedVoxelCentersRecursive ((OctreeBranch*)childNode, newKey, voxelCenterList_arg);
+						voxelCount += getOccupiedVoxelCentersRecursive (static_cast<const BranchNode*> (childNode), newKey, voxelCenterList);
 						break;
 					}
-					case LEAF_NODE:
+					case pcl::octree::LEAF_NODE:
 					{
 						// check if it is occupied
 						if(isVoxelOccupiedAtKey(newKey))
 						{
-							PointT newPoint;
+							pcl::PointXYZ newPoint;
 
 							genLeafNodeCenterFromOctreeKey (newKey, newPoint);
-							voxelCenterList_arg.push_back (newPoint);
+							voxelCenterList.push_back (newPoint);
 
 							voxelCount++;
 							}
@@ -1042,17 +1348,11 @@ namespace GPOM {
         double minZ_;
         double maxZ_;
 
-        /** \brief Maximum amount of keys available in octree. */
-        unsigned int maxKeys_;
-
         /** \brief Flag indicating if octree has defined bounding box. */
         bool boundingBoxDefined_;
 
-        /** \brief If an inverse variance is less than this threshold, then the node will be pruned. */
-        Scalar inverseVarianceThreshold_;
-
-        /** \brief If an occupancy is greater than this threshold, then the node will be thought of as being occupied. */
-        Scalar occuapancyThreshold_;
+        /** \brief if the occupancy is greater than this threshold, it is thought of being occupied */
+		  Scalar occupancyThreshold_; // TODO: varianceThreshold_ ?
 
         /** \brief mean for PLSC. */
         Scalar PLSC_mean_;
@@ -1061,213 +1361,5 @@ namespace GPOM {
         Scalar PLSC_variance_;
     };
 }
-
-
-//#if 0
-////#include <pcl/octree/octree.h>
-////#include <pcl/octree/octree_impl.h> 
-//#include <pcl/octree/octree_nodes.h>
-//#include <pcl/octree/octree_base.h>
-//
-//#include "GP/DataTypes.hpp"
-//
-//namespace GPOM {
-//
-//	template<typename DataT>
-//	class OctreePointCloudGPLeaf : public pcl::octree::OctreeLeafAbstract<DataT>
-//    {
-//    public:
-//      /** \brief Class initialization. */
-//      OctreePointCloudGPLeaf ()
-//		  : m_mean((Scalar) 0.f), m_inverseVariance((Scalar) 0.f)
-//      {
-//      }
-//
-//      /** \brief Empty class deconstructor. */
-//      ~OctreePointCloudGPLeaf ()
-//      {
-//      }
-//
-//      /** \brief deep copy function */
-//      virtual OctreeNode *
-//      deepCopy () const
-//      {
-//        return (OctreeNode*) new OctreePointCloudGPLeaf (*this);
-//      }
-//
-//      /** \brief Read input data. Only an internal counter is increased.
-//       * /param point_arg: input point - this argument is ignored
-//       *  */
-//      virtual void
-//      setData (const DataT& point_arg)
-//      {
-//      }
-//
-//      /** \brief Returns a null pointer as this leaf node does not store any data.
-//       *  \param data_arg: reference to return pointer of leaf node DataT element (will be set to 0).
-//       */
-//      virtual void
-//      getData (const DataT*& data_arg) const
-//      {
-//        data_arg = 0;
-//      }
-//
-//      /** \brief Empty getData data vector implementation as this leaf node does not store any data. \
-//       *  \param dataVector_arg: reference to dummy DataT vector that is extended with leaf node DataT elements.
-//       */
-//      virtual void
-//      getData (std::vector<DataT>& dataVector_arg) const
-//      {
-//      }
-//
-//      /** \brief Return mean.
-//       *  \return mean
-//       * */
-//      Scalar
-//      getMean()
-//      {
-//        return m_mean;
-//      }
-//
-//      /** \brief Return inverse variance.
-//       *  \return sigma
-//       * */
-//      Scalar
-//      getInverseVariance()
-//      {
-//        return m_inverseVariance;
-//      }
-//
-//      /** \brief Merge predictions.
-//       *  \param dataVector_arg: reference to dummy DataT vector that is extended with leaf node DataT elements.
-//       * */
-//      void
-//      merge(const Scalar mean, const Scalar inverseVariance)
-//      {
-//		  m_mean						= m_inverseVariance * m_mean + inverseVariance * mean;
-//		  m_inverseVariance		+= inverseVariance;
-//		  m_mean						/= m_inverseVariance;
-//      }
-//
-//      /** \brief Empty reset leaf node implementation as this leaf node does not store any data. */
-//      virtual void
-//      reset ()
-//      {
-//		m_inverseVariance = (Scalar) 0.f;
-//		m_mean = (Scalar) 0.f;
-//      }
-//
-//    private:
-//		Scalar m_inverseVariance;
-//		Scalar m_mean;
-//    };
-//
-//    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//    /** \brief @b Octree pointcloud GP class
-//     *  \note This class generate an octrees from a point cloud (zero-copy). Only the amount of points that fall into the leaf node voxel are stored.
-//     *  \note The octree pointcloud is initialized with its voxel resolution. Its bounding box is automatically adjusted or can be predefined.
-//     *  \note
-//     *  \note typename: PointT: type of point used in pointcloud
-//     *  \ingroup octree
-//     *  \author Julius Kammerl (julius@kammerl.de)
-//     */
-//    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//    template<typename PointT, 
-//				     typename LeafT = OctreePointCloudGPLeaf<int>, 
-//					 typename OctreeT = pcl::octree::OctreeBase<int, LeafT> >
-//	class OctreePointCloudGP : public pcl::octree::OctreePointCloud<PointT, LeafT, OctreeT>
-//      {
-//		public:
-//			// public typedefs for single/double buffering
-//			//typedef OctreePointCloudGP<PointT, LeafT, pcl::octree::OctreeBase<int, LeafT> > SingleBuffer;
-//			//typedef OctreePointCloudGP<PointT, LeafT, pcl::octree::Octree2BufBase<int, LeafT> > DoubleBuffer;
-//
-//		  // iterators are friends
-//		  friend class pcl::octree::OctreeIteratorBase<int, LeafT, OctreeT> ;
-//		  friend class pcl::octree::OctreeDepthFirstIterator<int, LeafT, OctreeT> ;
-//		  friend class pcl::octree::OctreeBreadthFirstIterator<int, LeafT, OctreeT> ;
-//		  friend class pcl::octree::OctreeLeafNodeIterator<int, LeafT, OctreeT> ;
-//
-//			// Octree iterators
-//			typedef pcl::octree::OctreeDepthFirstIterator<int, LeafT, OctreeT> Iterator;
-//			typedef const pcl::octree::OctreeDepthFirstIterator<int, LeafT, OctreeT> ConstIterator;
-//
-//			typedef pcl::octree::OctreeLeafNodeIterator<int, LeafT, OctreeT> LeafNodeIterator;
-//			typedef const pcl::octree::OctreeLeafNodeIterator<int, LeafT, OctreeT> ConstLeafNodeIterator;
-//
-//			typedef pcl::octree::OctreeDepthFirstIterator<int, LeafT, OctreeT> DepthFirstIterator;
-//			typedef const pcl::octree::OctreeDepthFirstIterator<int, LeafT, OctreeT> ConstDepthFirstIterator;
-//			typedef pcl::octree::OctreeBreadthFirstIterator<int, LeafT, OctreeT> BreadthFirstIterator;
-//			typedef const pcl::octree::OctreeBreadthFirstIterator<int, LeafT, OctreeT> ConstBreadthFirstIterator;
-//
-//      /** \brief OctreePointCloudDensity class constructor.
-//       *  \param resolution_arg:  octree resolution at lowest octree level
-//       * */
-//      OctreePointCloudGP (const double resolution_arg)
-//		  : OctreePointCloud<PointT, LeafT, OctreeT> (resolution_arg)
-//      {
-//      }
-//
-//      /** \brief Empty class deconstructor. */
-//      virtual
-//      ~OctreePointCloudGP ()
-//      {
-//      }
-//
-//      /** \brief Get the mean and variance within a leaf node voxel which is addressed by a point
-//       *  \param point_arg: a point addressing a voxel
-//       *  \param mean: mean
-//       *  \param variance: variance
-//       * */
-//		bool
-//		getMeanAndInverseVarianceAtPoint (const PointT			&point_arg,
-//																		 Scalar					&mean, 
-//																		 Scalar					&inverseVariance) const
-//		{
-//			mean						= (Scalar) 0.f;
-//			inverseVariance	= (Scalar) 0.f;
-//
-//			OctreePointCloudGPLeaf<int>* leaf = this->findLeafAtPoint (point_arg);
-//
-//			if (leaf)
-//			{
-//				mean						= leaf->getMean();
-//				inverseVariance	= leaf->getInverseVariance();
-//				return true;
-//			}
-//
-//			return false;
-//		}
-//
-//      /** \brief Merge the mean and variance within a leaf node voxel which is addressed by a point
-//       *  \param point_arg: a point addressing a voxel
-//       *  \param mean: mean
-//       *  \param variance: variance
-//       * */
-//		bool
-//		mergeMeanAndInverseVarianceAtPoint (const PointT			&point_arg,
-//																			   const Scalar			mean, 
-//																			   const Scalar			inverseVariance) const
-//		{
-//			OctreePointCloudGPLeaf<int>* leaf = this->findLeafAtPoint (point_arg);
-//
-//			if (leaf)
-//			{
-//				leaf->merge(mean, inverseVariance);
-//
-//				// prune node
-//				return true;
-//			}
-//			else
-//			{
-//				// create leaf node
-//			}
-//
-//			return false;
-//		}
-//
-//      };
-//}
-//#endif
 
 #endif

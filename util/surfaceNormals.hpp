@@ -58,42 +58,42 @@ namespace GPOM{
 		return pNormals;
 	}
 
-	// PointNormal: float x, y, znormal[3], curvature
-	void smoothAndNormalEstimation(pcl::PointCloud<pcl::PointXYZ>::Ptr pPoints, 
-																 pcl::PointCloud<pcl::PointNormal>::Ptr &pPointNormals)
-	{
-		// Smoothing and normal estimation based on polynomial reconstruction
-		// Moving Least Squares (MLS) surface reconstruction method can be used to smooth and resample noisy data
-
-		// Create a KD-Tree
-		pcl::search::KdTree<pcl::PointXYZ>::Ptr kdtree(new pcl::search::KdTree<pcl::PointXYZ>);
-
-		// Init object (second point type is for the normals, even if unused)
-		pcl::MovingLeastSquares<pcl::PointXYZ, pcl::PointNormal> mls;
-
-		// Set parameters
-		mls.setInputCloud(pPoints);
-		mls.setPolynomialFit(true);
-		mls.setSearchMethod(kdtree);
-		mls.setSearchRadius(0.03); // 0.8
-
-		// Reconstruct
-		// PCL v1.6
-#if 0
-		mls.setComputeNormals (true);
-
-		// Output has the PointNormal type in order to store the normals calculated by MLS
-		pcl::PointCloud<pcl::PointNormal> mls_points;
-		mls.process (mls_points);
-		return mls_points;
-#else
-		mls.reconstruct(*pPoints);
-
-		// Output has the PointNormal type in order to store the normals calculated by MLS
-		pPointNormals = mls.getOutputNormals();
-		//mls.setOutputNormals(mls_points);
-#endif
-	}
+//	// PointNormal: float x, y, znormal[3], curvature
+//	void smoothAndNormalEstimation(pcl::PointCloud<pcl::PointXYZ>::Ptr pPoints, 
+//																 pcl::PointCloud<pcl::PointNormal>::Ptr &pPointNormals)
+//	{
+//		// Smoothing and normal estimation based on polynomial reconstruction
+//		// Moving Least Squares (MLS) surface reconstruction method can be used to smooth and resample noisy data
+//
+//		// Create a KD-Tree
+//		pcl::search::KdTree<pcl::PointXYZ>::Ptr kdtree(new pcl::search::KdTree<pcl::PointXYZ>);
+//
+//		// Init object (second point type is for the normals, even if unused)
+//		pcl::MovingLeastSquares<pcl::PointXYZ, pcl::PointNormal> mls;
+//
+//		// Set parameters
+//		mls.setInputCloud(pPoints);
+//		mls.setPolynomialFit(true);
+//		mls.setSearchMethod(kdtree);
+//		mls.setSearchRadius(0.03); // 0.8
+//
+//		// Reconstruct
+//		// PCL v1.6
+//#if 0
+//		mls.setComputeNormals (true);
+//
+//		// Output has the PointNormal type in order to store the normals calculated by MLS
+//		pcl::PointCloud<pcl::PointNormal> mls_points;
+//		mls.process (mls_points);
+//		return mls_points;
+//#else
+//		mls.reconstruct(*pPoints);
+//
+//		// Output has the PointNormal type in order to store the normals calculated by MLS
+//		pPointNormals = mls.getOutputNormals();
+//		//mls.setOutputNormals(mls_points);
+//#endif
+//	}
 }
 
 #endif 
