@@ -1,11 +1,11 @@
-#ifndef	 NORMAL_CUMMULATIVE_DISTRIBUTION_FUNCTION_HPP
+#ifndef NORMAL_CUMMULATIVE_DISTRIBUTION_FUNCTION_HPP
 #define NORMAL_CUMMULATIVE_DISTRIBUTION_FUNCTION_HPP
 
 #include <cmath>
-#include <GP/DataTypes.hpp>
+#include "GP/DataTypes.hpp"
 
 namespace GPOM {
-	Scalar phi(Scalar x)
+	Scalar normcdf(Scalar x)
 	{
 		// constants
 		Scalar a1 =  0.254829592f;

@@ -1,18 +1,14 @@
-#ifndef OCTREE_FOR_GAUSSIAN_PROCESS
-#define OCTREE_FOR_GAUSSIAN_PROCESS
+#ifndef OCTREE_FOR_GAUSSIAN_PROCESS_OCCUPANCY_MAPPING_HPP
+#define OCTREE_FOR_GAUSSIAN_PROCESS_OCCUPANCY_MAPPING_HPP
 
 #include <assert.h>
 #include <algorithm>
 using std::min;
 using std::max;
 
-#include <pcl/octree/octree_base.h>
-#include <pcl/octree/octree2buf_base.h>
-
 #include <pcl/point_types.h>
-
-#include <pcl/octree/octree_nodes.h>
-#include <pcl/octree/octree_iterator.h>
+#include <pcl/octree/octree.h>
+#include <pcl/octree/octree_impl.h>
 
 #include "util/normcdf.hpp"
 
@@ -224,6 +220,14 @@ namespace GPOM {
 			// Eigen aligned allocator
 			typedef std::vector<pcl::PointXYZ, Eigen::aligned_allocator<pcl::PointXYZ> >											AlignedPointTVector;
 
+			//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+			// Offset
+			//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	 public:
+			void getOffset(pcl::PointXYZ &offset)
+			{
+
+			}
 
 			//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 			// Merge
@@ -237,17 +241,30 @@ namespace GPOM {
 			void
 			mergeMeanAndVarianceAtPoint(const pcl::PointXYZ &point, const Scalar mean, const Scalar variance)
 			{
+				mergeMeanAndVarianceAtPoint(point.x, point.y, point.z, mean, variance);
+			}
+
+			/** \brief Merge mean and inverse variance at a given point. If there is no leaf node at the point, create one.
+			  * \param[in] pointX position x
+			  * \param[in] pointY position y
+			  * \param[in] pointZ position z
+			  * \param[in] mean mean
+			  * \param[in] inverseVariance inverse variance
+			  */
+			void
+			mergeMeanAndVarianceAtPoint(const Scalar pointX, const Scalar pointY, const Scalar pointZ,
+												 const Scalar mean, const Scalar variance)
+			{
 				// make sure bounding box is big enough
-				adoptBoundingBoxToPoint (point);
+				adoptBoundingBoxToPoint(pointX, pointY, pointZ);
 
 				// generate key
 				pcl::octree::OctreeKey key;
-				genOctreeKeyforPoint (point, key);
+				genOctreeKeyforPoint(pointX, pointY, pointZ, key);
 
 				// merge the gaussian process to octree at key
 				this->addData(key, GaussianDistribution(mean, variance));
 			}
-
 
 			//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 			// Prune
@@ -328,7 +345,7 @@ namespace GPOM {
 				* \return "true" if voxel exist; "false" otherwise
 				*/
 			bool
-			isVoxelOccupiedAtPoint (const double pointX, const double pointY, const double pointZ) const
+			isVoxelOccupiedAtPoint (const Scalar pointX, const Scalar pointY, const Scalar pointZ) const
 			{
 				pcl::octree::OctreeKey key;
 
@@ -378,7 +395,7 @@ namespace GPOM {
 			}
 
 			bool
-			isVoxelOccupiedAtNode(const pcl::octree::OctreeIteratorBase &iter) const
+			isVoxelOccupiedAtNode(ConstIterator &iter) const
 			{
 				if(!iter.isLeafNode()) return false;
 
@@ -404,14 +421,14 @@ namespace GPOM {
 			}
 
 			/** \brief Get a pcl::PointXYZ vector of centers of all occupied voxels.
-				* \param[in] occupancyThreshod occupancy threshold
+				* \param[in] occupancyThreshold occupancy threshold
 				* \param[out] voxelCenterList results are written to this vector of pcl::PointXYZ elements
 				* \return number of occupied voxels
 				*/
 			int
-			getOccupiedVoxelCenters(const Scalar occupancyThreshod, AlignedPointTVector &voxelCenterList) const
+			getOccupiedVoxelCenters(const Scalar occupancyThreshold, AlignedPointTVector &voxelCenterList)
 			{
-				setOccupancyThreshold(occupancyThreshod);
+				setOccupancyThreshold(occupancyThreshold);
 
 				pcl::octree::OctreeKey key;
 				key.x = key.y = key.z = 0;
@@ -448,7 +465,7 @@ namespace GPOM {
 				* \return "true" if voxel exist; "false" otherwise
 			*/
 			bool
-			getGaussianDistribution(const double pointX, const double pointY, const double pointZ,
+			getGaussianDistribution(const Scalar pointX, const Scalar pointY, const Scalar pointZ,
 											GaussianDistribution gaussian) const
 			{
 				pcl::octree::OctreeKey key;
@@ -527,7 +544,7 @@ namespace GPOM {
 				* \return "true" if voxel exist; "false" otherwise
 			*/
 			bool
-			getOccupancy(const double pointX, const double pointY, const double pointZ,
+			getOccupancy(const Scalar pointX, const Scalar pointY, const Scalar pointZ,
 							 Scalar &occupancy) const
 			{
 				pcl::octree::OctreeKey key;
@@ -589,7 +606,7 @@ namespace GPOM {
 			inline Scalar
 			PLSC(const GaussianDistribution &gaussian) const
 			{
-				return phi((PLSC_mean_ - gaussian.getMean()) / sqrt(gaussian.getVariance() + PLSC_variance_));
+				return normcdf((PLSC_mean_ - gaussian.getMean()) / sqrt(gaussian.getVariance() + PLSC_variance_));
 			}
 
 			//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -599,9 +616,9 @@ namespace GPOM {
         /** \brief Octree pointcloud constructor.
           * \param[in] resolution octree resolution at lowest octree level
           */
-        OctreeGPOM (const double resolution, 
-								  const Scalar PLSC_mean		= (Scalar) 0.05f,
-								  const Scalar PLSC_variance	= (Scalar) 0.0001f)
+        OctreeGPOM (const Scalar resolution, 
+						  const Scalar PLSC_mean		= (Scalar) 0.05f,
+						  const Scalar PLSC_variance	= (Scalar) 0.0001f)
 			: OctreeT (), resolution_ (resolution), 
 			  minX_ (0.0f), maxX_ (resolution), 
 			  minY_ (0.0f), maxY_ (resolution), 
@@ -638,7 +655,7 @@ namespace GPOM {
         /** \brief Get octree voxel resolution
           * \return voxel resolution at lowest tree level
           */
-        inline double
+        inline Scalar
         getResolution () const
         {
 			return (resolution_);
@@ -968,13 +985,13 @@ namespace GPOM {
           * \param[in] treeDepth depth/level in octree
           * \return squared voxel cube side length
           */
-        double
+        Scalar
         getVoxelSquaredSideLen (unsigned int treeDepth) const
 		{
-			double sideLen;
+			Scalar sideLen;
 
 			// side length of the voxel cube increases exponentially with the octree depth
-			sideLen = this->resolution_ * static_cast<double>(1 << (this->octreeDepth_ - treeDepth));
+			sideLen = this->resolution_ * static_cast<Scalar>(1 << (this->octreeDepth_ - treeDepth));
 
 			// squared voxel side length
 			sideLen *= sideLen;
@@ -1038,7 +1055,7 @@ namespace GPOM {
 			unsigned int maxKeyY;
 			unsigned int maxKeyZ;
 
-			double octreeSideLen;
+			Scalar octreeSideLen;
 
 			const float minValue = std::numeric_limits<float>::epsilon();
 
@@ -1052,11 +1069,13 @@ namespace GPOM {
 
 
 			// tree depth == amount of bits of maxVoxels
-			this->octreeDepth_ = max ((min (static_cast<unsigned int> (OCT_MAXTREEDEPTH), 
-													  static_cast<unsigned int> (ceil (this->Log2 (maxVoxels)-minValue)))),
-												static_cast<unsigned int> (0));
+		  this->octreeDepth_ = max ((min (static_cast<unsigned int> (OCT_MAXTREEDEPTH), 
+													 static_cast<unsigned int> (ceil (this->Log2 (maxVoxels)-minValue)))),
+											 static_cast<unsigned int> (0));
 
-			octreeSideLen = static_cast<double> (1 << this->octreeDepth_) * resolution_-minValue;
+
+			octreeSideLen = static_cast<double> (1 << this->octreeDepth_) * resolution_ - minValue;
+			//octreeSideLen = static_cast<Scalar> (1 << this->octreeDepth_) * resolution_;
 
 			if (this->leafCount_ == 0)
 			{
@@ -1071,6 +1090,8 @@ namespace GPOM {
 				minX_ -= octreeOversizeX;
 				minY_ -= octreeOversizeY;
 				minZ_ -= octreeOversizeZ;
+
+				//octreeSideLen -= minValue; // SWAN
 
 				maxX_ += octreeOversizeX;
 				maxY_ += octreeOversizeY;
@@ -1088,33 +1109,56 @@ namespace GPOM {
 		}
 
         /** \brief Checks if given point is within the bounding box of the octree
+         * \param[in] pointX x coordinate to be checked for bounding box violations
+         * \param[in] pointY y coordinate to be checked for bounding box violations
+         * \param[in] pointZ z coordinate to be checked for bounding box violations
+         * \return "true" - no bound violation
+         */
+        inline bool isPointWithinBoundingBox (const Scalar pointX, const Scalar pointY, const Scalar pointZ) const
+        {
+          return (! ( (pointX <  minX_) || (pointY <  minY_) || (pointZ <  minZ_) ||
+				          (pointX >= maxX_) || (pointY >= maxY_) || (pointZ >= maxZ_)));
+        }
+
+        /** \brief Checks if given point is within the bounding box of the octree
          * \param[in] pointIdx_arg point to be checked for bounding box violations
          * \return "true" - no bound violation
          */
         inline bool isPointWithinBoundingBox (const pcl::PointXYZ& point) const
         {
-          return (! ( (point.x <  minX_) || (point.y <  minY_) || (point.z <  minZ_) ||
-				          (point.x >= maxX_) || (point.y >= maxY_) || (point.z >= maxZ_)));
+          return isPointWithinBoundingBox (point.x, point.y, point.z);
         }
 
-        /** \brief Grow the bounding box/octree until point fits
+         /** \brief Grow the bounding box/octree until point fits
           * \param[in] point point that should be within bounding box;
           */
         void
-        adoptBoundingBoxToPoint (const pcl::PointXYZ& point)
-		{
+        adoptBoundingBoxToPoint(const pcl::PointXYZ& point)
+		  {
+			  adoptBoundingBoxToPoint(point.x, point.y, point.z);
+		  }
+
+       /** \brief Grow the bounding box/octree until point fits
+         * \param[in] pointX x coordinate to be checked for bounding box violations
+         * \param[in] pointY y coordinate to be checked for bounding box violations
+         * \param[in] pointZ z coordinate to be checked for bounding box violations
+          */
+        void
+        adoptBoundingBoxToPoint (const Scalar pointX, const Scalar pointY, const Scalar pointZ)
+		  {
+
 			const float minValue = std::numeric_limits<float>::epsilon();
 
 			// increase octree size until point fits into bounding box
 			while (true)
 			{
-				bool bLowerBoundViolationX = (point.x < minX_);
-				bool bLowerBoundViolationY = (point.y < minY_);
-				bool bLowerBoundViolationZ = (point.z < minZ_);
+				bool bLowerBoundViolationX = (pointX < minX_);
+				bool bLowerBoundViolationY = (pointY < minY_);
+				bool bLowerBoundViolationZ = (pointZ < minZ_);
 
-				bool bUpperBoundViolationX = (point.x >= maxX_);
-				bool bUpperBoundViolationY = (point.y >= maxY_);
-				bool bUpperBoundViolationZ = (point.z >= maxZ_);
+				bool bUpperBoundViolationX = (pointX >= maxX_);
+				bool bUpperBoundViolationY = (pointY >= maxY_);
+				bool bUpperBoundViolationZ = (pointZ >= maxZ_);
 
 				// do we violate any bounds?
 				if (bLowerBoundViolationX || bLowerBoundViolationY || bLowerBoundViolationZ || 
@@ -1122,7 +1166,7 @@ namespace GPOM {
 				{
 					if (boundingBoxDefined_)
 					{
-						double octreeSideLen;
+						Scalar octreeSideLen;
 						unsigned char childIdx;
 
 						// octree not empty - we add another tree level and thus increase its size by a factor of 2*2*2
@@ -1137,7 +1181,7 @@ namespace GPOM {
 
 						this->rootNode_ = newRootBranch;
 
-						octreeSideLen = static_cast<double> (1 << this->octreeDepth_) * resolution_;
+						octreeSideLen = static_cast<Scalar> (1 << this->octreeDepth_) * resolution_;
 
 						if (!bUpperBoundViolationX)				  minX_ -= octreeSideLen;
 						if (!bUpperBoundViolationY)				  minY_ -= octreeSideLen;
@@ -1148,7 +1192,7 @@ namespace GPOM {
 						this->setTreeDepth (this->octreeDepth_);
 
 						// recalculate bounding box width
-						octreeSideLen = static_cast<double> (1 << this->octreeDepth_) * resolution_ - minValue;
+						octreeSideLen = static_cast<Scalar> (1 << this->octreeDepth_) * resolution_ - minValue;
 
 						// increase octree bounding box
 						maxX_ = minX_ + octreeSideLen;
@@ -1159,13 +1203,13 @@ namespace GPOM {
 					else
 					{
 						// octree is empty - we set the center of the bounding box to our first pixel
-						this->minX_ = point.x - this->resolution_ / 2;
-						this->minY_ = point.y - this->resolution_ / 2;
-						this->minZ_ = point.z - this->resolution_ / 2;
+						this->minX_ = pointX - this->resolution_ / 2;
+						this->minY_ = pointY - this->resolution_ / 2;
+						this->minZ_ = pointZ - this->resolution_ / 2;
 
-						this->maxX_ = point.x + this->resolution_ / 2;
-						this->maxY_ = point.y + this->resolution_ / 2;
-						this->maxZ_ = point.z + this->resolution_ / 2;
+						this->maxX_ = pointX + this->resolution_ / 2;
+						this->maxY_ = pointY + this->resolution_ / 2;
+						this->maxZ_ = pointZ + this->resolution_ / 2;
 
 						getKeyBitSize();
 						
@@ -1179,38 +1223,31 @@ namespace GPOM {
 			}
 		}
 
-        /** \brief Generate octree key for voxel at a given point
-          * \param[in] point the point addressing a voxel
-          * \param[out] key write octree key to this reference
-          */
-        void
-        genOctreeKeyforPoint (const pcl::PointXYZ & point, pcl::octree::OctreeKey &key) const
-		{
-			// calculate integer key for point coordinates
-			key.x = static_cast<unsigned int> ((point.x - this->minX_) / this->resolution_);
-			key.y = static_cast<unsigned int> ((point.y - this->minY_) / this->resolution_);
-			key.z = static_cast<unsigned int> ((point.z - this->minZ_) / this->resolution_);
-		}
+			/** \brief Generate octree key for voxel at a given point
+				* \param[in] point the point addressing a voxel
+				* \param[out] key write octree key to this reference
+				*/
+			void
+			genOctreeKeyforPoint (const pcl::PointXYZ & point, pcl::octree::OctreeKey &key) const
+			{
+				genOctreeKeyforPoint(point.x, point.y, point.z, key);
+			}
 
-        /** \brief Generate octree key for voxel at a given point
-          * \param[in] pointX X coordinate of point addressing a voxel
-          * \param[in] pointY Y coordinate of point addressing a voxel
-          * \param[in] pointZ Z coordinate of point addressing a voxel
-          * \param[out] key write octree key to this reference
-          */
-        void
-        genOctreeKeyforPoint (const double pointX, const double pointY, const double pointZ,
-												 pcl::octree::OctreeKey & key) const
-		{
-			pcl::PointXYZ tempPoint;
-
-			tempPoint.x = static_cast<float> (pointX);
-			tempPoint.y = static_cast<float> (pointY);
-			tempPoint.z = static_cast<float> (pointZ);
-
-			// generate key for point
-			genOctreeKeyforPoint (tempPoint, key);
-		}
+			/** \brief Generate octree key for voxel at a given point
+				* \param[in] pointX X coordinate of point addressing a voxel
+				* \param[in] pointY Y coordinate of point addressing a voxel
+				* \param[in] pointZ Z coordinate of point addressing a voxel
+				* \param[out] key write octree key to this reference
+				*/
+			void
+			genOctreeKeyforPoint (const Scalar pointX, const Scalar pointY, const Scalar pointZ,
+										pcl::octree::OctreeKey & key) const
+			{
+				// calculate integer key for point coordinates
+				key.x = static_cast<unsigned int> ((pointX - this->minX_) / this->resolution_);
+				key.y = static_cast<unsigned int> ((pointY - this->minY_) / this->resolution_);
+				key.z = static_cast<unsigned int> ((pointZ - this->minZ_) / this->resolution_);
+			}
 
 
         /** \brief Generate a point at center of leaf node voxel
@@ -1221,9 +1258,9 @@ namespace GPOM {
         genLeafNodeCenterFromOctreeKey (const pcl::octree::OctreeKey & key, pcl::PointXYZ& point) const
 		{
 			// define point to leaf node voxel center
-			point.x = static_cast<float> ((static_cast<double> (key.x) + 0.5f) * this->resolution_ + this->minX_);
-			point.y = static_cast<float> ((static_cast<double> (key.y) + 0.5f) * this->resolution_ + this->minY_);
-			point.z = static_cast<float> ((static_cast<double> (key.z) + 0.5f) * this->resolution_ + this->minZ_);
+			point.x = static_cast<float> ((static_cast<Scalar> (key.x) + 0.5f) * this->resolution_ + this->minX_);
+			point.y = static_cast<float> ((static_cast<Scalar> (key.y) + 0.5f) * this->resolution_ + this->minY_);
+			point.z = static_cast<float> ((static_cast<Scalar> (key.z) + 0.5f) * this->resolution_ + this->minZ_);
 		}
 
         /** \brief Generate a point at center of octree voxel at given tree level
@@ -1235,9 +1272,9 @@ namespace GPOM {
         genVoxelCenterFromOctreeKey (const pcl::octree::OctreeKey & key, unsigned int treeDepth, pcl::PointXYZ& point) const
 		{
 			// generate point for voxel center defined by treedepth (bitLen) and key
-			point.x = static_cast<float> ((static_cast <double> (key.x) + 0.5f) * (this->resolution_ * static_cast<double> (1 << (this->octreeDepth_ - treeDepth))) + this->minX_);
-			point.y = static_cast<float> ((static_cast <double> (key.y) + 0.5f) * (this->resolution_ * static_cast<double> (1 << (this->octreeDepth_ - treeDepth))) + this->minY_);
-			point.z = static_cast<float> ((static_cast <double> (key.z) + 0.5f) * (this->resolution_ * static_cast<double> (1 << (this->octreeDepth_ - treeDepth))) + this->minZ_);
+			point.x = static_cast<float> ((static_cast <Scalar> (key.x) + 0.5f) * (this->resolution_ * static_cast<Scalar> (1 << (this->octreeDepth_ - treeDepth))) + this->minX_);
+			point.y = static_cast<float> ((static_cast <Scalar> (key.y) + 0.5f) * (this->resolution_ * static_cast<Scalar> (1 << (this->octreeDepth_ - treeDepth))) + this->minY_);
+			point.z = static_cast<float> ((static_cast <Scalar> (key.z) + 0.5f) * (this->resolution_ * static_cast<Scalar> (1 << (this->octreeDepth_ - treeDepth))) + this->minZ_);
 		}
 
         /** \brief Generate bounds of an octree voxel using octree key and tree depth arguments
@@ -1251,16 +1288,16 @@ namespace GPOM {
 																	Eigen::Vector3f &max_pt) const
 		{
 			// calculate voxel size of current tree depth
-			double voxel_side_len = this->resolution_ * static_cast<double> (1 << (this->octreeDepth_ - treeDepth));
+			Scalar voxel_side_len = this->resolution_ * static_cast<Scalar> (1 << (this->octreeDepth_ - treeDepth));
 
 			// calculate voxel bounds
-			min_pt (0) = static_cast<float> (static_cast<double> (key.x) * voxel_side_len + this->minX_);
-			min_pt (1) = static_cast<float> (static_cast<double> (key.y) * voxel_side_len + this->minY_);
-			min_pt (2) = static_cast<float> (static_cast<double> (key.z) * voxel_side_len + this->minZ_);
+			min_pt (0) = static_cast<float> (static_cast<Scalar> (key.x) * voxel_side_len + this->minX_);
+			min_pt (1) = static_cast<float> (static_cast<Scalar> (key.y) * voxel_side_len + this->minY_);
+			min_pt (2) = static_cast<float> (static_cast<Scalar> (key.z) * voxel_side_len + this->minZ_);
 
-			max_pt (0) = static_cast<float> (static_cast<double> (key.x + 1) * voxel_side_len + this->minX_);
-			max_pt (1) = static_cast<float> (static_cast<double> (key.y + 1) * voxel_side_len + this->minY_);
-			max_pt (2) = static_cast<float> (static_cast<double> (key.z + 1) * voxel_side_len + this->minZ_);
+			max_pt (0) = static_cast<float> (static_cast<Scalar> (key.x + 1) * voxel_side_len + this->minX_);
+			max_pt (1) = static_cast<float> (static_cast<Scalar> (key.y + 1) * voxel_side_len + this->minY_);
+			max_pt (2) = static_cast<float> (static_cast<Scalar> (key.z + 1) * voxel_side_len + this->minZ_);
 		}
 
         /** \brief Recursively search the tree for all leaf nodes and return a vector of voxel centers.
@@ -1336,17 +1373,17 @@ namespace GPOM {
         //double epsilon_;
 
         /** \brief Octree resolution. */
-        double resolution_;
+        Scalar resolution_;
 
         // Octree bounding box coordinates
-        double minX_;
-        double maxX_;
+        Scalar minX_;
+        Scalar maxX_;
 
-        double minY_;
-        double maxY_;
+        Scalar minY_;
+        Scalar maxY_;
 
-        double minZ_;
-        double maxZ_;
+        Scalar minZ_;
+        Scalar maxZ_;
 
         /** \brief Flag indicating if octree has defined bounding box. */
         bool boundingBoxDefined_;

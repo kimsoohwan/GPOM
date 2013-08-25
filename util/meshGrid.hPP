@@ -7,43 +7,43 @@
 namespace GPOM{
 
 	pcl::PointCloud<pcl::PointXYZ>::Ptr meshGrid(const pcl::PointXYZ		&min,
-																					const pcl::PointXYZ		&max,
-																					const Scalar					gridSize)
+																const pcl::PointXYZ		&max,
+																const Scalar				gridSize)
 	{
 		// point cloud
 		pcl::PointCloud<pcl::PointXYZ>::Ptr pPoints(new pcl::PointCloud<pcl::PointXYZ>());
 
 		// generate mesh grid in the order of x, y, z
-		for(Scalar x = min.x; x < max.x; x += gridSize)
-			for(Scalar y = min.y; y < max.y; y += gridSize)
-				for(Scalar z = min.z; z < max.z; z += gridSize)
+		for(Scalar x = min.x + gridSize/(static_cast<Scalar>(2.f)); x < max.x; x += gridSize)
+			for(Scalar y = min.y + gridSize/(static_cast<Scalar>(2.f)); y < max.y; y += gridSize)
+				for(Scalar z = min.z + gridSize/(static_cast<Scalar>(2.f)); z < max.z; z += gridSize)
 					pPoints->push_back(pcl::PointXYZ(x, y, z));
 
 		return pPoints;
 	}
 
 	MatrixPtr meshGrid(Eigen::Vector3f				&min,
-									   Eigen::Vector3f				&max,
-									   const Scalar					gridSize)
+							 Eigen::Vector3f				&max,
+							 const Scalar					gridSize)
 	{
 		// exclude the max points
-		const int nx = floor((max.x() - min.x() - EPSILON) / gridSize);
-		const int ny = floor((max.y() - min.y() - EPSILON) / gridSize);
-		const int nz = floor((max.z() - min.z() - EPSILON) / gridSize);
+		const int nx = floor((max.x() - min.x()) / gridSize);
+		const int ny = floor((max.y() - min.y()) / gridSize);
+		const int nz = floor((max.z() - min.z()) / gridSize);
 		MatrixPtr pXs(new Matrix(3, nx*ny*nz));
 		//std::cout << nx << ", " << ny << ", " << nz << std::endl;
 
 		// generate mesh grid in the order of x, y, z
 		int col = 0;
-		for(int ix = 0; ix < nx; ix++)
+		Scalar x = min.x() + gridSize/(static_cast<Scalar>(2.f));
+		for(int ix = 0; ix < nx; ix++, x += gridSize)
 		{
-			const Scalar x = min.x() + ((Scalar) ix) * gridSize;
-			for(int iy = 0; iy < ny; iy++)
+			Scalar y = min.y() + gridSize/(static_cast<Scalar>(2.f));
+			for(int iy = 0; iy < ny; iy++, y += gridSize)
 			{
-				const Scalar y = min.y() + ((Scalar) iy) * gridSize;
-				for(int iz = 0; iz < nz; iz++)
+				Scalar z = min.z() + gridSize/(static_cast<Scalar>(2.f));
+				for(int iz = 0; iz < nz; iz++, z += gridSize)
 				{
-					const Scalar z = min.z() + ((Scalar) iz) * gridSize;
 					(*pXs)(0, col) = x;
 					(*pXs)(1, col) = y;
 					(*pXs)(2, col) = z;

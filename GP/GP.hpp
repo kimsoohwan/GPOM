@@ -42,7 +42,7 @@ namespace GPOM{
 							 MatrixPtr							&pSigma, 
 							 bool									fVarianceVector = true)
 		{
-			std::cout << "GP::predict" << std::endl;
+			//std::cout << "GP::predict" << std::endl;
 			m_InfMethod.predict(meanLogHyp, covLogHyp, likCovLogHyp, pXs, 
 												 pMu, pSigma, fVarianceVector);
 		}

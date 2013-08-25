@@ -1,27 +1,15 @@
-#include <boost/thread/thread.hpp>
+#ifndef OCTREE_GPOM_VIEWER_HPP
+#define OCTREE_GPOM_VIEWER_HPP
 
-#include <pcl/io/pcd_io.h>
+#include <boost/thread/thread.hpp>
 
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/visualization/point_cloud_handlers.h>
 #include <pcl/visualization/common/common.h>
 
-#include <pcl/octree/octree.h>
-#include <pcl/octree/octree_impl.h>
-
-#include <pcl/filters/filter.h>
-
 #include "Octree/OctreeGPOM.hpp"
 
-#include <omp.h>
-
 namespace GPOM {
-
-//=============================
-// Displaying cubes is very long!
-// so we limit their numbers.
- const int MAX_DISPLAYED_CUBES(15000);
-//=============================
 
 class OctreeGPOMViewer
 {
@@ -43,14 +31,14 @@ public:
     m_viz.addText("Keys:", 0, 170, 0.0, 1.0, 0.0, "keys_t");
     m_viz.addText("a -> Increment displayed depth", 10, 155, 0.0, 1.0, 0.0, "key_a_t");
     m_viz.addText("z -> Decrement displayed depth", 10, 140, 0.0, 1.0, 0.0, "key_z_t");
-    m_viz.addText("o -> Show/Hide octree", 10, 125, 0.0, 1.0, 0.0, "key_o_t");
+    m_viz.addText("o -> Show/Hide octree", 10, 125, 0.0, 1.0, 0.0, "key_o_t"); // TODO: show octree structure
     m_viz.addText("p -> Show/Hide point cloud", 10, 110, 0.0, 1.0, 0.0, "key_p_t");
     m_viz.addText("s/w -> Surface/Wireframe representation", 10, 95, 0.0, 1.0, 0.0, "key_sw_t");
 
     //set current level to half the maximum one
-    m_displayedDepth = static_cast<int> (floor (m_octree.getTreeDepth() / 2.0));
-    if (m_displayedDepth == 0)
-      m_displayedDepth = 1;
+    //m_displayedDepth = static_cast<int> (floor (m_octree.getTreeDepth() / 2.0));
+    //if (m_displayedDepth == 0)      m_displayedDepth = 1;
+    m_displayedDepth = m_octree.getTreeDepth();
 
 	 // update
 	 update();
@@ -72,31 +60,31 @@ private:
   void keyboardEventOccurred(const pcl::visualization::KeyboardEvent &event, void *)
   {
 
-    if (event.getKeySym() == "a" && event.keyDown())
+    if (event.getKeySym() == "a" && event.keyDown())			// Increment displayed depth
     {
       IncrementLevel();
     }
-    else if (event.getKeySym() == "z" && event.keyDown())
+    else if (event.getKeySym() == "z" && event.keyDown())	// Decrement displayed depth
     {
       DecrementLevel();
     }
-    else if (event.getKeySym() == "d" && event.keyDown())
+    else if (event.getKeySym() == "o" && event.keyDown())	// Show/Hide octree
     {
-      m_bDisplayCubes = !m_bDisplayCubes;
+      m_bDisplayOctree = !m_bDisplayOctree;
       update();
     }
-    else if (event.getKeySym() == "x" && event.keyDown())
+    else if (event.getKeySym() == "p" && event.keyDown())	// Show/Hide point cloud
     {
-      m_bShowPointsWithCubes = !m_bShowPointsWithCubes;
+      m_bDisplayPoints = !m_bDisplayPoints;
       update();
     }
-    else if (event.getKeySym() == "w" && event.keyDown())
+    else if (event.getKeySym() == "w" && event.keyDown()) // Surface/Wireframe representation
     {
       if(!m_bWireframe)
         m_bWireframe=true;
       update();
     }
-    else if (event.getKeySym() == "s" && event.keyDown())
+    else if (event.getKeySym() == "s" && event.keyDown()) // Surface/Wireframe representation
     {
       if(m_bWireframe)
         m_bWireframe=false;
@@ -196,14 +184,27 @@ private:
    */
   void showCubes()
   {
-	 double voxelSideLen = sqrt(m_octree.getVoxelSquaredSideLen(m_displayedDepth));
-
     //get the renderer of the visualizer object
     vtkRenderer *renderer = m_viz.getRenderWindow()->GetRenderers()->GetFirstRenderer();
 
     vtkSmartPointer<vtkAppendPolyData> treeWireframe = vtkSmartPointer<vtkAppendPolyData>::New();
-    size_t i;
  
+#if 1
+	double voxelSideLen = sqrt(m_octree.getVoxelSquaredSideLen());
+	double s = voxelSideLen / 2.0;
+
+	OctreeGPOM::LeafNodeIterator iter(m_octree);
+	pcl::PointXYZ center;
+	Scalar occupancy;
+	while(*++iter)
+	{
+		// query occupancy
+		if(m_octree.isVoxelOccupiedAtLeafNode(iter, center))
+			treeWireframe->AddInput(GetCuboid(center.x - s, center.x + s, 
+														 center.y - s, center.y + s, 
+														 center.z - s, center.z + s));
+	}
+#else
 	 // iterate the octree
     OctreeGPOM::Iterator tree_it(m_octree);
 	 while(*tree_it++)
@@ -236,6 +237,7 @@ private:
       //we are already the desired depth, there is no reason to go deeper.
       tree_it.skipChildVoxels();
 	 }
+#endif
 
     vtkSmartPointer<vtkActor> treeActor = vtkSmartPointer<vtkActor>::New();
 
@@ -316,15 +318,5 @@ private:
 };
 
 }
-//int main(int argc, char ** argv)
-//{
-//  if (argc != 3)
-//  {
-//    std::cerr << "ERROR: Syntax is octreeVisu <pcd file> <resolution>" << std::endl;
-//    std::cerr << "EXAMPLE: ./octreeVisu bun0.pcd 0.001" << std::endl;
-//    return -1;
-//  }
-//
-//  std::string cloud_path(argv[1]);
-//  OctreeGPOMViewer v(cloud_path, atof(argv[2]));
-//}
+
+#endif
