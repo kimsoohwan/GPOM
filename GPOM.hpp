@@ -81,7 +81,6 @@ public:
 		{
 			//std::cout << "# leaf node: " << numLeafNodes << std::endl;
 			numLeafNodes += 1;
-			totalNumPoints += n;
 			if(numLeafNodes < 400) continue;
 			if(numLeafNodes > 500) break;
 
@@ -92,6 +91,7 @@ public:
 			if(n <= MIN_HIT_POINTS_TO_CONSIDER) continue;
 			if(n > maxNumPoints)		maxNumPoints = n;
 			if(n < minNumPoints)		minNumPoints = n;
+			totalNumPoints += n;
 			std::cout << "[ " << numLeafNodes << " ]: " << n << std::endl;
 			//fout << numLeafNodes << "\t" << n << std::endl;
 
