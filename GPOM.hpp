@@ -30,7 +30,9 @@ public:
 	void build(pcl::PointCloud<pcl::PointXYZ>::ConstPtr			pHitPoints, 
 				  pcl::PointCloud<pcl::Normal>::ConstPtr				pNormals,
 				  pcl::PointCloud<pcl::PointXYZ>::ConstPtr			pRobotPositions, 
-				  const float													blockSize)
+				  const float													blockSize,		  
+				  const Scalar													pruneVarianceThreshold, 
+				  const Scalar													pruneOccupancyThreshold)
 	{
 		// training inputs
 		//Matrix Xd		= pHitPoints->getMatrixXfMap(3, 4, 0);
@@ -85,12 +87,13 @@ public:
 			const int n = indexVector.size();
 			//fout << n << std::endl;
 			if(n <= MIN_HIT_POINTS_TO_CONSIDER) continue;
+			if(numLeafNodex < 400) continue;
 			std::cout << "[ " << numLeafNodes << " ]: " << n << std::endl;
 			numLeafNodes += 1;
 			totalNumPoints += n;
 			if(n > maxNumPoints)		maxNumPoints = n;
 			if(n < minNumPoints)		minNumPoints = n;
-			if(numLeafNodes > 50) break;
+			if(numLeafNodes > 500) break;
 
 			// training inputs
 			//pcl::PointCloud<pcl::PointXYZ>::Ptr pHitPointsInLeafNode(new pcl::PointCloud<pcl::PointXYZ>(*pHitPoints, indexVector));
@@ -161,6 +164,11 @@ public:
 		std::cout << "max: " << maxNumPoints << std::endl;
 		std::cout << "min: " << minNumPoints << std::endl;
 		std::cout << "avg: " << (float) totalNumPoints / (float) numLeafNodes << std::endl;
+
+		// prune
+		std::cout << "before prune: " << getLeafCount() << " leaf nodes." << std::endl;
+		unsigned int numPrunedLeafNodes = pruneCertainUnoccupiedNodes(pruneVarianceThreshold, pruneOccupancyThreshold);
+		std::cout << "after prune: " << getLeafCount() << " leaf nodes. ( " << numPrunedLeafNodes << " were pruned. )" << std::endl;
 
 		// show
 		OctreeGPOMViewer viewer(pHitPoints, *this);

@@ -296,10 +296,11 @@ namespace GPOM {
 			}
 
         /** \brief Prune nodes that have low occupancy
+          * \param[in] varianceThreshold variance threshold
           * \param[in] occupancyThreshold occupancy threshold
           */
 			unsigned int
-			pruneUnoccupiedNodes(const Scalar occupancyThreshold)
+			pruneCertainUnoccupiedNodes(const Scalar varianceThreshold, const Scalar occupancyThreshold)
 			{
 				// variables
 				GaussianDistribution gaussian;
@@ -311,7 +312,8 @@ namespace GPOM {
 				while(*++iter)
 				{
 					pGaussian = dynamic_cast<const GaussianDistribution*> (*iter);
-					if(PLSC(*pGaussian) < occupancyThreshold)
+					if(pGaussian->getInverseVariance() > varianceThreshold &&
+						PLSC(*pGaussian) < occupancyThreshold)
 					{
 						removeLeaf(iter.getCurrentOctreeKey());
 						numNodeRemoved++;
@@ -355,7 +357,6 @@ namespace GPOM {
 				return isVoxelOccupiedAtKey(key);
 			}
 
-		protected:
 			/** \brief Check if voxel at given octree key.
 				* \param[in] key key to be checked
 				* \return "true" if voxel exist; "false" otherwise
@@ -366,12 +367,12 @@ namespace GPOM {
 				// search for key in octree
 				if(LeafNode* pLeaf = this->findLeaf(key))
 				{
-					return PLSC(pLeaf->getData()) > occupancyThreshold_;
+					return (pLeaf->getData().getInverseVariance() > inverseVarianceThreshold_) &&
+							 (PLSC(pLeaf->getData()) > occupancyThreshold_);
 				}
 				return false;
 			}
 
-		public:
 			/** \brief Get the mean and the inverse variance at a given leaf node iterator
 				* \param[in] iter leaf node iterator
 				* \param[in] center node center
@@ -625,59 +626,60 @@ namespace GPOM {
 			  minZ_ (0.0f), maxZ_ (resolution),
 			  boundingBoxDefined_ (false),
 			  occupancyThreshold_ (0.8f),
+			  inverseVarianceThreshold_ (static_cast<Scalar>(1.f / 1.25f)),
 			  PLSC_mean_(PLSC_mean),
 			  PLSC_variance_(PLSC_variance)
-		{
-			assert ( resolution > 0.0f );
-		}
+			{
+				assert ( resolution > 0.0f );
+			}
 
 
-        /** \brief Empty deconstructor. */
-        virtual
-        ~OctreeGPOM ()
-		{
-		}
+			/** \brief Empty deconstructor. */
+			virtual
+			~OctreeGPOM ()
+			{
+			}
 
-        /** \brief Set/change the octree voxel resolution
-          * \param[in] resolution side length of voxels at lowest tree level
-          */
-        inline void
-        setResolution (double resolution)
-        {
-			// octree needs to be empty to change its resolution
-			assert( this->leafCount_ == 0 );
+			/** \brief Set/change the octree voxel resolution
+				* \param[in] resolution side length of voxels at lowest tree level
+				*/
+			inline void
+			setResolution (double resolution)
+			{
+				// octree needs to be empty to change its resolution
+				assert( this->leafCount_ == 0 );
 
-			resolution_ = resolution;
+				resolution_ = resolution;
 
-			getKeyBitSize();
-        }
+				getKeyBitSize();
+			}
 
-        /** \brief Get octree voxel resolution
-          * \return voxel resolution at lowest tree level
-          */
-        inline Scalar
-        getResolution () const
-        {
-			return (resolution_);
-        }
+			/** \brief Get octree voxel resolution
+				* \return voxel resolution at lowest tree level
+				*/
+			inline Scalar
+			getResolution () const
+			{
+				return (resolution_);
+			}
 
-        /** \brief Get the maximum depth of the octree.
-         *  \return depth: maximum depth of octree
-         * */
-        inline unsigned int
-        getTreeDepth () const
-        {
-			return this->octreeDepth_;
-        }
+			/** \brief Get the maximum depth of the octree.
+			*  \return depth: maximum depth of octree
+			* */
+			inline unsigned int
+			getTreeDepth () const
+			{
+				return this->octreeDepth_;
+			}
 
-        /** \brief Set/change the occupancy threshold
-          * \param[in] occupancyThreshold
-          */
-        inline void
-        setOccupancyThreshold(const Scalar occupancyThreshold)
-        {
-			  occupancyThreshold_ = occupancyThreshold;
-        }
+			/** \brief Set/change the occupancy threshold
+				* \param[in] occupancyThreshold
+				*/
+			inline void
+			setOccupancyThreshold(const Scalar occupancyThreshold)
+			{
+				occupancyThreshold_ = occupancyThreshold;
+			}
 
         /** \brief Get the occupancy threshold
           * \return occupancy threshold
@@ -686,6 +688,24 @@ namespace GPOM {
         getOccupancyThreshold() const
         {
 			  return occupancyThreshold_;
+        }
+
+        /** \brief Set/change the occupancy threshold
+          * \param[in] occupancyThreshold
+          */
+        inline void
+        setVarianceThreshold(const Scalar varianceThreshold)
+        {
+			  inverseVarianceThreshold_ = static_cast<Scalar>(1.f) / varianceThreshold;
+        }
+
+        /** \brief Get the occupancy threshold
+          * \return occupancy threshold
+          */
+        inline Scalar
+        getVarianceThreshold() const
+        {
+			  return static_cast<Scalar>(1.f) / inverseVarianceThreshold_;
         }
 
        /** \brief Set/change the probabilistic least squre classification parameters
@@ -711,98 +731,98 @@ namespace GPOM {
         }
 
 
-        /** \brief Get a pcl::PointXYZ vector of centers of voxels intersected by a line segment.
-          * This returns a approximation of the actual intersected voxels by walking
-          * along the line with small steps. Voxels are ordered, from closest to
-          * furthest w.r.t. the origin.
-          * \param[in] origin origin of the line segment
-          * \param[in] end end of the line segment
-          * \param[out] voxel_center_list results are written to this vector of pcl::PointXYZ elements
-          * \param[in] precision determines the size of the steps: step_size = octree_resolution x precision
-          * \return number of intersected voxels
-          */
-        int
-        getApproxIntersectedVoxelCentersBySegment (const Eigen::Vector3f& origin, 
+			/** \brief Get a pcl::PointXYZ vector of centers of voxels intersected by a line segment.
+				* This returns a approximation of the actual intersected voxels by walking
+				* along the line with small steps. Voxels are ordered, from closest to
+				* furthest w.r.t. the origin.
+				* \param[in] origin origin of the line segment
+				* \param[in] end end of the line segment
+				* \param[out] voxel_center_list results are written to this vector of pcl::PointXYZ elements
+				* \param[in] precision determines the size of the steps: step_size = octree_resolution x precision
+				* \return number of intersected voxels
+				*/
+			int
+			getApproxIntersectedVoxelCentersBySegment (const Eigen::Vector3f& origin, 
 																	const Eigen::Vector3f& end,
 																	AlignedPointTVector &voxel_center_list,
 																	float precision)
-		{
-			Eigen::Vector3f direction = end - origin;
-			float norm = direction.norm ();
-			direction.normalize ();
-
-			const float step_size = static_cast<const float> (resolution_) * precision;
-
-			// Ensure we get at least one step for the first voxel.
-			const int nsteps = std::max (1, static_cast<int> (norm / step_size));
-
-			pcl::octree::OctreeKey prev_key;
-
-			bool bkeyDefined = false;
-
-			// Walk along the line segment with small steps.
-			for (int i = 0; i < nsteps; ++i)
 			{
-				Eigen::Vector3f p = origin + (direction * step_size * static_cast<const float> (i));
+				Eigen::Vector3f direction = end - origin;
+				float norm = direction.norm ();
+				direction.normalize ();
 
-				pcl::PointXYZ octree_p;
-				octree_p.x = p.x ();
-				octree_p.y = p.y ();
-				octree_p.z = p.z ();
+				const float step_size = static_cast<const float> (resolution_) * precision;
 
-				pcl::octree::OctreeKey key;
-				this->genOctreeKeyforPoint (octree_p, key);
+				// Ensure we get at least one step for the first voxel.
+				const int nsteps = std::max (1, static_cast<int> (norm / step_size));
 
-				// Not a new key, still the same voxel.
-				if ((key == prev_key) && (bkeyDefined) )
-				  continue;
+				pcl::octree::OctreeKey prev_key;
 
-				prev_key = key;
-				bkeyDefined = true;
+				bool bkeyDefined = false;
 
-				// check if it is occupied
-				if(isVoxelOccupiedAtKey(key))
+				// Walk along the line segment with small steps.
+				for (int i = 0; i < nsteps; ++i)
 				{
-					pcl::PointXYZ center;
-					genLeafNodeCenterFromOctreeKey (key, center);
-					voxel_center_list.push_back (center);
-				}
-			}
+					Eigen::Vector3f p = origin + (direction * step_size * static_cast<const float> (i));
 
-			pcl::octree::OctreeKey end_key;
-			pcl::PointXYZ end_p;
-			end_p.x = end.x ();
-			end_p.y = end.y ();
-			end_p.z = end.z ();
-			this->genOctreeKeyforPoint (end_p, end_key);
-			if (!(end_key == prev_key))
-			{
-				// check if it is occupied
-				if(isVoxelOccupiedAtKey(end_key))
-				{
-					pcl::PointXYZ center;
-					genLeafNodeCenterFromOctreeKey (end_key, center);
-					voxel_center_list.push_back (center);
+					pcl::PointXYZ octree_p;
+					octree_p.x = p.x ();
+					octree_p.y = p.y ();
+					octree_p.z = p.z ();
+
+					pcl::octree::OctreeKey key;
+					this->genOctreeKeyforPoint (octree_p, key);
+
+					// Not a new key, still the same voxel.
+					if ((key == prev_key) && (bkeyDefined) )
+						continue;
+
+					prev_key = key;
+					bkeyDefined = true;
+
+					// check if it is occupied
+					if(isVoxelOccupiedAtKey(key))
+					{
+						pcl::PointXYZ center;
+						genLeafNodeCenterFromOctreeKey (key, center);
+						voxel_center_list.push_back (center);
+					}
 				}
-			}
+
+				pcl::octree::OctreeKey end_key;
+				pcl::PointXYZ end_p;
+				end_p.x = end.x ();
+				end_p.y = end.y ();
+				end_p.z = end.z ();
+				this->genOctreeKeyforPoint (end_p, end_key);
+				if (!(end_key == prev_key))
+				{
+					// check if it is occupied
+					if(isVoxelOccupiedAtKey(end_key))
+					{
+						pcl::PointXYZ center;
+						genLeafNodeCenterFromOctreeKey (end_key, center);
+						voxel_center_list.push_back (center);
+					}
+				}
 			
-			return (static_cast<int> (voxel_center_list.size ()));
-		}
+				return (static_cast<int> (voxel_center_list.size ()));
+			}
 
 
-        /** \brief Delete leaf node / voxel at given point
-          * \param[in] point point addressing the voxel to be deleted.
-          */
-        void
-        deleteVoxelAtPoint (const pcl::PointXYZ& point)
-		{
-			pcl::octree::OctreeKey key;
+			/** \brief Delete leaf node / voxel at given point
+				* \param[in] point point addressing the voxel to be deleted.
+				*/
+			void
+			deleteVoxelAtPoint (const pcl::PointXYZ& point)
+			{
+				pcl::octree::OctreeKey key;
 
-			// generate key for point
-			this->genOctreeKeyforPoint (point, key);
+				// generate key for point
+				this->genOctreeKeyforPoint (point, key);
 
-			this->removeLeaf (key);
-		}
+				this->removeLeaf (key);
+			}
 
 
         /** \brief Delete the octree structure and its leaf nodes. */
@@ -1389,7 +1409,10 @@ namespace GPOM {
         bool boundingBoxDefined_;
 
         /** \brief if the occupancy is greater than this threshold, it is thought of being occupied */
-		  Scalar occupancyThreshold_; // TODO: varianceThreshold_ ?
+		  Scalar occupancyThreshold_;
+
+        /** \brief if the inverse variance is greater than this threshold, it is thought of being certain */
+		  Scalar inverseVarianceThreshold_;
 
         /** \brief mean for PLSC. */
         Scalar PLSC_mean_;

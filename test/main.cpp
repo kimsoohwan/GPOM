@@ -113,9 +113,13 @@ int main()
 
 	// GPOM
 	const Scalar mapResolution = 0.1f;		// 10cm
-	const Scalar blockSize = 2.f;				// 2m; 
 	GPOMType gpom(mapResolution);
-	gpom.build(pHitPoints, pNormals, pRobotPositions, blockSize);
+
+	// build
+	const Scalar blockSize = 2.f;				// 2m; 
+	const Scalar pruneVarianceThreshold = 0.8;
+	const Scalar pruneOccupancyThreshold = 0.3;
+	gpom.build(pHitPoints, pNormals, pRobotPositions, blockSize, pruneVarianceThreshold, pruneOccupancyThreshold);
 }
 
 #else
