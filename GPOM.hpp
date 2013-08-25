@@ -87,7 +87,7 @@ public:
 			const int n = indexVector.size();
 			//fout << n << std::endl;
 			if(n <= MIN_HIT_POINTS_TO_CONSIDER) continue;
-			if(numLeafNodex < 400) continue;
+			if(numLeafNodes < 400) continue;
 			std::cout << "[ " << numLeafNodes << " ]: " << n << std::endl;
 			numLeafNodes += 1;
 			totalNumPoints += n;
