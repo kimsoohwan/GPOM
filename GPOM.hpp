@@ -80,20 +80,20 @@ public:
 		while (*++iter)
 		{
 			//std::cout << "# leaf node: " << numLeafNodes << std::endl;
+			numLeafNodes += 1;
+			totalNumPoints += n;
+			if(numLeafNodes < 400) continue;
+			if(numLeafNodes > 500) break;
 
 			// points in the leaf node
 			std::vector<int> indexVector;
 			iter.getData(indexVector);
 			const int n = indexVector.size();
-			//fout << n << std::endl;
 			if(n <= MIN_HIT_POINTS_TO_CONSIDER) continue;
-			if(numLeafNodes < 400) continue;
-			std::cout << "[ " << numLeafNodes << " ]: " << n << std::endl;
-			numLeafNodes += 1;
-			totalNumPoints += n;
 			if(n > maxNumPoints)		maxNumPoints = n;
 			if(n < minNumPoints)		minNumPoints = n;
-			if(numLeafNodes > 500) break;
+			std::cout << "[ " << numLeafNodes << " ]: " << n << std::endl;
+			//fout << numLeafNodes << "\t" << n << std::endl;
 
 			// training inputs
 			//pcl::PointCloud<pcl::PointXYZ>::Ptr pHitPointsInLeafNode(new pcl::PointCloud<pcl::PointXYZ>(*pHitPoints, indexVector));
