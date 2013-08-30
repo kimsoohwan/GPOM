@@ -16,8 +16,9 @@
 #include "GP/Lik/LikGauss.hpp"
 #include "GP/Lik/LikGaussFDI.hpp"
 #include "GP/Inf/InfExact.hpp"
+#include "GP/Inf/InfExactUnstableButFast.hpp"
 #include "GP/Inf/InfExactFDI.hpp"
-//#include "InfExactUnstable.hpp"
+#include "GP/Inf/InfExactUnstableButFastFDI.hpp"
 #include "GP/GP.hpp"
 
 
@@ -55,10 +56,14 @@ CovMaterniso3FDI		covMaterniso3FDI;
 CovSparseisoFDI			covSparseisoFDI;
 
 // GP
-typedef GaussianProcess<MeanZero,			CovSEiso,					LikGauss,			InfExact>				GPCovSEiso;
-typedef GaussianProcess<MeanZero,			CovMaterniso3,			LikGauss,			InfExact>				GPCovMaterniso3;
-typedef GaussianProcess<MeanZeroFDI,	CovSEisoFDI,			LikGaussFDI,		InfExactFDI>		GPCovSEisoFDI;
-typedef GaussianProcess<MeanZeroFDI,	CovMaterniso3FDI,	LikGaussFDI,		InfExactFDI>		GPCovMaterniso3FDI;
+//typedef GaussianProcess<MeanZero,			CovSEiso,					LikGauss,			InfExact>				GPCovSEiso;
+//typedef GaussianProcess<MeanZero,			CovMaterniso3,			LikGauss,			InfExact>				GPCovMaterniso3;
+//typedef GaussianProcess<MeanZeroFDI,	CovSEisoFDI,			LikGaussFDI,		InfExactFDI>		GPCovSEisoFDI;
+//typedef GaussianProcess<MeanZeroFDI,	CovMaterniso3FDI,	LikGaussFDI,		InfExactFDI>		GPCovMaterniso3FDI;
+typedef GaussianProcess<MeanZero,			CovSEiso,					LikGauss,			InfExactUnstableButFast>				GPCovSEiso;
+typedef GaussianProcess<MeanZero,			CovMaterniso3,			LikGauss,			InfExactUnstableButFast>				GPCovMaterniso3;
+typedef GaussianProcess<MeanZeroFDI,	CovSEisoFDI,			LikGaussFDI,		InfExactUnstableButFastFDI>		GPCovSEisoFDI;
+typedef GaussianProcess<MeanZeroFDI,	CovMaterniso3FDI,	LikGaussFDI,		InfExactUnstableButFastFDI>		GPCovMaterniso3FDI;
 GPCovSEiso						gpCovSEiso;
 GPCovMaterniso3			gpCovMaterniso3;
 GPCovSEisoFDI				gpCovSEisoFDI;
@@ -77,7 +82,8 @@ Scalar nlZ;
 VectorPtr pDnlZ;
 
 // GPOM
-typedef GaussianProcess<MeanZeroFDI, CovMaterniso3FDI, LikGaussFDI, InfExactFDI>		GPOMType;
+//typedef GaussianProcess<MeanZeroFDI, CovMaterniso3FDI, LikGaussFDI, InfExactFDI>		GPOMType;
+typedef GaussianProcess<MeanZeroFDI, CovMaterniso3FDI, LikGaussFDI, InfExactUnstableButFastFDI>		GPOMType;
 GPOMType gpom;
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -392,8 +398,10 @@ BOOST_AUTO_TEST_CASE(covSEiso_predict) {
 	// check
     BOOST_CHECK_EQUAL(((Mu - (*pMu)).array().abs() < epsilon).all(), true);
     BOOST_CHECK_EQUAL(((Variance - (*pVariance)).array().abs() < epsilon).all(), true);
-	//std::cout << "Variance = " << std::endl << Variance << std::endl << std::endl;
-	//std::cout << "pVariance = " << std::endl << *pVariance << std::endl << std::endl;
+	std::cout << "Mu = " << std::endl << Mu << std::endl << std::endl;
+	std::cout << "pMu = " << std::endl << *pMu << std::endl << std::endl;
+	std::cout << "Variance = " << std::endl << Variance << std::endl << std::endl;
+	std::cout << "pVariance = " << std::endl << *pVariance << std::endl << std::endl;
 }
 
 // TEST2: CovMaterniso3 predict
@@ -963,10 +971,10 @@ BOOST_AUTO_TEST_CASE(covSEisoFDI_nlZ_dnlZ) {
 																							nlZ, 
 																							pDnlZ);
 
-	//std::cout << "nlZ_ = " << std::endl << nlZ_ << std::endl << std::endl;
-	//std::cout << "nlZ = " << std::endl << nlZ << std::endl << std::endl;
-	//std::cout << "dnlZ_ = " << std::endl << dnlZ << std::endl << std::endl;
-	//std::cout << "dnlZ = " << std::endl << *pDnlZ << std::endl << std::endl;
+	std::cout << "nlZ_ = " << std::endl << nlZ_ << std::endl << std::endl;
+	std::cout << "nlZ = " << std::endl << nlZ << std::endl << std::endl;
+	std::cout << "dnlZ_ = " << std::endl << dnlZ << std::endl << std::endl;
+	std::cout << "dnlZ = " << std::endl << *pDnlZ << std::endl << std::endl;
 
 	// check
 	BOOST_CHECK_EQUAL(std::abs(nlZ_ - nlZ) < epsilon, true);
@@ -989,6 +997,11 @@ BOOST_AUTO_TEST_CASE(covMaterniso3FDI_nlZ_dnlZ) {
 	gpCovMaterniso3FDI.negativeLogMarginalLikelihood(meanLogHypFDI, covLogHypFDI, likLogHypFDI, 
 																								  nlZ, 
 																								  pDnlZ);
+
+	std::cout << "nlZ_ = " << std::endl << nlZ_ << std::endl << std::endl;
+	std::cout << "nlZ = " << std::endl << nlZ << std::endl << std::endl;
+	std::cout << "dnlZ_ = " << std::endl << dnlZ << std::endl << std::endl;
+	std::cout << "dnlZ = " << std::endl << *pDnlZ << std::endl << std::endl;
 
 	// check
 	BOOST_CHECK_EQUAL(std::abs(nlZ_ - nlZ) < epsilon, true);

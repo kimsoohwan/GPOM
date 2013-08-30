@@ -34,15 +34,10 @@ namespace GPOM{
 	typedef	boost::shared_ptr<const Vector>												VectorConstPtr;
 
 	// CholeskyFactor
-	typedef	Eigen::LLT<Matrix>																		CholeskyFactor;
-	//typedef	Eigen::ConjugateGradient<Matrix, Eigen::Upper>					CholeskyFactor;
-	//typedef	boost::shared_ptr<CholeskyFactor>											CholeskyFactorPtr;
-	//typedef	boost::shared_ptr<const CholeskyFactor>								CholeskyFactorConstPtr;
-
-	//typedef	Eigen::ConjugateGradient<SparseMatrix, Eigen::Upper>		SparseCholeskyFactor;
-	//typedef	Eigen::SimplicialLDLT<SparseMatrix, Eigen::Upper>				SparseCholeskyFactor;
-	//typedef	boost::shared_ptr<SparseCholeskyFactor>								SparseCholeskyFactorPtr;
-	//typedef	boost::shared_ptr<const SparseCholeskyFactor>					SparseCholeskyFactorConstPtr;
+	typedef	Eigen::LLT<Matrix>												CholeskyFactor;
+	typedef	Eigen::ConjugateGradient<Matrix, Eigen::Upper>					CGCholeskyFactor;
+	//typedef	Eigen::SimplicialLDLT<SparseMatrix, Eigen::Upper>			CholeskyFactor;
+	//typedef	Eigen::ConjugateGradient<SparseMatrix, Eigen::Upper>		CGCholeskyFactor;
 
 	// EPS
 	const Scalar EPSILON		= 1e-16f;

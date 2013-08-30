@@ -3,126 +3,63 @@
 #include <string>
 
 #include <pcl/io/pcd_io.h>
-//#include <pcl/visualization/cloud_viewer.h>	// pcl::visualization::CloudViewer
 
 #include "GP/Mean/MeanZeroFDI.hpp"
 #include "GP/Cov/CovMaternisoFDI.hpp"
 #include "GP/Cov/CovSparseisoFDI.hpp"
 #include "GP/Lik/LikGaussFDI.hpp"
-#include "GP/Inf/InfExactFDI.hpp"
+#include "GP/Inf/InfExactUnstableButFastFDI.hpp"
 
 #include "util/surfaceNormals.hpp"
 #include "util/int2string.hpp"
+#include "util/filters.hpp"
+#include "util/loadPointCloud.hpp"
+#include "util/visualization.hpp"
+
 #include "GPOM.hpp"
 using namespace GPOM;
 
-typedef GaussianProcessOccupancyMap<MeanZeroFDI, CovMaterniso3FDI, LikGaussFDI, InfExactFDI> GPOMType;
+typedef GaussianProcessOccupancyMap<MeanZeroFDI, CovMaterniso3FDI, LikGaussFDI, InfExactUnstableButFastFDI> GPOMType;
 //typedef GaussianProcessOccupancyMap<MeanZeroFDI, CovSparseisoFDI, LikGaussFDI, InfExactFDI> GPOMType;
 
 int main()
 {
-#if 0
-	// Point Clouds - Hits
-	pcl::PointCloud<pcl::PointXYZ>::Ptr pHitPoints(new pcl::PointCloud<pcl::PointXYZ>);
+	// directory
+	std::string dataPath("../../data/simulation2/");
 
-	// Load data from a PCD file
-	//std::string filenName("input.pcd");
-	std::string filenName("../../../PCL/PCL-1.5.1-Source/test/bunny.pcd");
-	if (pcl::io::loadPCDFile<pcl::PointXYZ>(filenName, *pHitPoints) == -1)
-	{
-		PCL_ERROR("Couldn't read file!\n");
-		return -1;
-	}
-	else
-	{
-		std::cout << pHitPoints->size() << " points are successfully loaded." << std::endl;
-	}
-
-	//// viewer
-	//pcl::visualization::CloudViewer viewer("Simple Cloud Viewer");
-	//viewer.showCloud(pHitPoints);
-	//while(!viewer.wasStopped ())
-	//{
-	//}
-
-	// surface normals
-	//pcl::PointCloud<pcl::PointNormal>::Ptr pPointNormals;
-	//smoothAndNormalEstimation(pHitPoints, pPointNormals);
-	const float searchRadius = 0.03f;
-	pcl::PointCloud<pcl::Normal>::Ptr pNormals = estimateSurfaceNormals(pHitPoints, robotPosition, searchRadius);
-
-	// Point Clouds - Robot positions
-	pcl::PointXYZ		robotPosition(0.f, 0.075f, 1.0f);
-	pcl::PointCloud<pcl::PointXYZ>::Ptr pRobotPositions(new pcl::PointCloud<pcl::PointXYZ>);
-	pRobotPositions->push_back(robotPosition);
-#else
-	std::string dataPath("../../data/");
-
-	// robot positions
-	std::cout << "loading robot positions ... " << std::endl;
-	pcl::PointCloud<pcl::PointXYZ>::Ptr pRobotPositions(new pcl::PointCloud<pcl::PointXYZ>);
-	std::string robotPositionsFilenName = dataPath + "robot_positions.pcd";
-	if (pcl::io::loadPCDFile<pcl::PointXYZ>(robotPositionsFilenName, *pRobotPositions) == -1)
-	{
-		PCL_ERROR("Couldn't read file!\n");
-		return -1;
-	}
-	else
-	{
-		std::cout << pRobotPositions->size() << " robot positions are successfully loaded." << std::endl;
-	}
-
-	// points
-	std::cout << "loading points ... " << std::endl;
-	pcl::PointCloud<pcl::PointXYZ>::Ptr pHitPoints(new pcl::PointCloud<pcl::PointXYZ>);
-	pcl::PointCloud<pcl::PointXYZ>::Ptr pTempPoints(new pcl::PointCloud<pcl::PointXYZ>);
-	for(int scan = 1; scan < 2; scan++)
-	{
-		std::string pointsFilenName = dataPath + to_string(scan) + "_points.pcd";
-		if (pcl::io::loadPCDFile<pcl::PointXYZ>(pointsFilenName, *pTempPoints) == -1)
-		{
-			PCL_ERROR("Couldn't read file!\n");
-			return -1;
-		}
-		else
-		{
-			(*pHitPoints) += (*pTempPoints);
-			std::cout << pHitPoints->size() << " hit points are successfully loaded." << std::endl;
-		}
-	}
-
-	// surface normals
-	std::cout << "loading normals ... " << std::endl;
-	pcl::PointCloud<pcl::Normal>::Ptr pNormals(new pcl::PointCloud<pcl::Normal>);
-	pcl::PointCloud<pcl::Normal>::Ptr pTempNormals(new pcl::PointCloud<pcl::Normal>);
-	for(int scan = 1; scan < 2; scan++)
-	{
-		std::string normalsFilenName = dataPath + to_string(scan) + "_normals.pcd";
-		if (pcl::io::loadPCDFile<pcl::Normal>(normalsFilenName, *pTempNormals) == -1)
-		{
-			PCL_ERROR("Couldn't read file!\n");
-			return -1;
-		}
-		else
-		{
-			(*pNormals) += (*pTempNormals);
-			std::cout << pNormals->size() << " surface normals are successfully loaded." << std::endl;
-		}
-	}
-#endif
+	// point normals
+	double radius = 2.f;
+	std::string filename = dataPath +"clean_point_normals_" + to_string((long double) radius) + ".pcd";
+	pcl::PointCloud<pcl::PointNormal>::Ptr pointNormals = loadPointCloud<pcl::PointNormal>(filename);
 
 	// GPOM
-	const Scalar mapResolution = 0.1f;		// 10cm
+	const Scalar mapResolution = 0.2f;		// 20cm
 	GPOMType gpom(mapResolution);
 
 	// build
 	const Scalar blockSize = 2.f;				// 2m; 
 	const Scalar pruneVarianceThreshold = 0.8;
 	const Scalar pruneOccupancyThreshold = 0.3;
-	gpom.build(pHitPoints, pNormals, pRobotPositions, blockSize, pruneVarianceThreshold, pruneOccupancyThreshold);
+
+	// hyperparameters
+	GPOMType::MeanHyp	meanLogHyp;
+	GPOMType::CovHyp	covLogHyp;	covLogHyp << log(5.158820125747006f), log(1.863198796627710f);
+	GPOMType::LikHyp	likLogHyp;	likLogHyp << log(0.144316317935091f), log(0.000000023020410f);
+	const int numMaxIterationsForTraining = 0;
+	Eigen::Vector3f min(-8, -10, 0);
+	Eigen::Vector3f max(10, 6, 10);
+	gpom.build(pointNormals, 
+			   meanLogHyp, covLogHyp, likLogHyp, numMaxIterationsForTraining,
+			   min, max,
+			   pruneVarianceThreshold, pruneOccupancyThreshold);
+
+	// show
+	OctreeGPOMViewer<pcl::PointNormal> viewer(pointNormals, gpom);
 }
 
-#else
+#endif
+
+#if 0
 #include "Octree/OctreeGPOM.hpp"
 //#include "Octree/OctreeGPOMViewer.hpp"
 
@@ -177,5 +114,152 @@ int main()
 	//OctreeGPOMViewer viewer(pCloud, octree);
 
 	return 0;
+}
+#endif
+
+#if 0
+#include <iostream>
+#include <pcl/io/pcd_io.h>
+#include <pcl/point_types.h>
+#include <pcl/filters/statistical_outlier_removal.h>
+
+#include "util/filters.hpp"
+#include "util/visualization.hpp"
+
+int
+main (int argc, char** argv)
+{
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
+
+
+  // Fill in the cloud data
+  pcl::PCDReader reader;
+
+  // Replace the path below with the path where you saved your file
+  std::string dataPath("../../data/");
+  std::string pointsFilenName = dataPath + "all_clean_points_cropped.pcd";
+  reader.read<pcl::PointXYZ> (pointsFilenName, *cloud);
+
+  std::cerr << "Cloud before filtering: " << std::endl;
+  std::cerr << *cloud << std::endl;
+
+  pcl::PointCloud<pcl::PointXYZ>::Ptr inliers
+	  = GPOM::statisticalOutlierRemoval<pcl::PointXYZ>(cloud, 50, 2.0);
+
+  std::cerr << "Cloud after filtering: " << std::endl;
+  std::cerr << *inliers << std::endl;
+
+  GPOM::compareTwoPointClouds<pcl::PointXYZ>(cloud, inliers);
+
+  return (0);
+}
+#endif
+
+#if 0 // mls
+#include <iostream>
+#include <pcl/io/pcd_io.h>
+#include <pcl/point_types.h>
+
+#include "util/surfaceNormals.hpp"
+#include "util/visualization.hpp"
+
+int
+main (int argc, char** argv)
+{
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
+
+
+  // Fill in the cloud data
+  pcl::PCDReader reader;
+
+  // Replace the path below with the path where you saved your file
+  std::string dataPath("../../data/");
+  std::string pointsFilenName = dataPath + "all_clean_points_downsampled_0.05_cropped.pcd";
+  reader.read<pcl::PointXYZ> (pointsFilenName, *cloud);
+
+  std::cerr << "Cloud before filtering: " << std::endl;
+  std::cerr << *cloud << std::endl;
+
+  double radius = 0.1f;
+  for(int i = 0; i < 10; i++, radius += 0.1f)
+  {
+	std::cout << "moving least squares ... radius = " << radius << " : ";
+	pcl::PointCloud<pcl::PointNormal>::Ptr	mls_normals = GPOM::smoothAndNormalEstimation(cloud, radius);
+	std::cout << mls_normals->size() << " were estimated." << std::endl;
+
+	string allPointsFilename = dataPath + "all_clean_points_downsampled_0.05_cropped_normals_" + to_string((long double) radius) + ".pcd";
+	pcl::io::savePCDFile (allPointsFilename, *mls_normals, true);
+  }
+  return 0;
+
+}
+#endif
+
+#if 0 // mls
+#include <iostream>
+#include <pcl/io/pcd_io.h>
+#include <pcl/point_types.h>
+
+#include "util/surfaceNormals.hpp"
+#include "util/visualization.hpp"
+
+int
+main (int argc, char** argv)
+{
+  pcl::PointCloud<pcl::PointNormal>::Ptr cloud1 (new pcl::PointCloud<pcl::PointNormal>);
+  pcl::PointCloud<pcl::PointNormal>::Ptr cloud2 (new pcl::PointCloud<pcl::PointNormal>);
+
+
+  // Fill in the cloud data
+  pcl::PCDReader reader;
+  std::string dataPath("../../data/");
+  std::string pointsFilenName;
+
+  // Replace the path below with the path where you saved your file
+  pointsFilenName = dataPath + "all_clean_points_downsampled_0.05_cropped_normals_" + to_string((long double) 0.3f) + ".pcd";
+  reader.read<pcl::PointNormal> (pointsFilenName, *cloud1);
+  pointsFilenName = dataPath + "all_clean_points_downsampled_0.05_cropped_normals_" + to_string((long double) 0.4f) + ".pcd";
+  reader.read<pcl::PointNormal> (pointsFilenName, *cloud2);
+  std::cerr << "Cloud1: " << *cloud1 << std::endl;
+  std::cerr << "Cloud1: " << *cloud2 << std::endl;
+
+  GPOM::compareTwoNormals<pcl::PointNormal>(cloud1, cloud2);
+
+  return (0);
+}
+#endif
+
+
+#if 0 // mls
+#include <iostream>
+#include <pcl/io/pcd_io.h>
+#include <pcl/point_types.h>
+
+#include "util/surfaceNormals.hpp"
+#include "util/visualization.hpp"
+
+int
+main (int argc, char** argv)
+{
+  pcl::PointCloud<pcl::PointNormal>::Ptr cloud1 (new pcl::PointCloud<pcl::PointNormal>);
+  pcl::PointCloud<pcl::PointNormal>::Ptr cloud2 (new pcl::PointCloud<pcl::PointNormal>);
+
+
+  // Fill in the cloud data
+  pcl::PCDReader reader;
+  std::string dataPath("../../data/");
+  std::string pointsFilenName;
+
+  // Replace the path below with the path where you saved your file
+  pointsFilenName = dataPath + "all_clean_points_downsampled_0.05_cropped_normals_" + to_string((long double) 0.3f) + ".pcd";
+  reader.read<pcl::PointNormal> (pointsFilenName, *cloud1);
+  pointsFilenName = dataPath + "all_clean_points_downsampled_0.05_cropped_normals_" + to_string((long double) 0.4f) + ".pcd";
+  reader.read<pcl::PointNormal> (pointsFilenName, *cloud2);
+  std::cerr << "Cloud1: " << *cloud1 << std::endl;
+  std::cerr << "Cloud1: " << *cloud2 << std::endl;
+
+  GPOM::compareTwoNormals<pcl::PointNormal>(cloud1, cloud2);
+
+  return (0);
 }
 #endif

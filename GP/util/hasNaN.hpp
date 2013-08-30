@@ -3,12 +3,9 @@
 
 #include <iostream>
 #include "GP/DataTypes.hpp"
+#include "GP/util/valueCheck.hpp"
 
 namespace GPOM {
-
-#ifndef isNaN
-#define isNaN(x) ((x)!=(x)) 
-#endif
 
 	bool hasNaN(MatrixConstPtr pX)
 	{

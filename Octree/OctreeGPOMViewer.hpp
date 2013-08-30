@@ -11,10 +11,11 @@
 
 namespace GPOM {
 
+template <typename PointT>
 class OctreeGPOMViewer
 {
 public:
-  OctreeGPOMViewer(pcl::PointCloud<pcl::PointXYZ>::ConstPtr pCloud, 
+  OctreeGPOMViewer(typename pcl::PointCloud<PointT>::ConstPtr pCloud, 
 						 OctreeGPOM &octree)
 	  : m_viz ("Octree visualizator"), 
 		 m_pCloud(pCloud),
@@ -176,7 +177,7 @@ private:
 	 if(m_bDisplayPoints)
 	 {
         //add original cloud in visualizer
-        pcl::visualization::PointCloudColorHandlerGenericField<pcl::PointXYZ> color_handler(m_pCloud, "z");
+        pcl::visualization::PointCloudColorHandlerGenericField<PointT> color_handler(m_pCloud, "z");
         m_viz.addPointCloud(m_pCloud, color_handler, "cloud");
 	 }
 
@@ -325,7 +326,7 @@ private:
   pcl::visualization::PCLVisualizer m_viz;
 
   //original cloud
-  pcl::PointCloud<pcl::PointXYZ>::ConstPtr m_pCloud;
+  typename pcl::PointCloud<PointT>::ConstPtr m_pCloud;
 
   //octree
   OctreeGPOM &m_octree;

@@ -4,6 +4,7 @@
 #include <fstream>
 
 #include <pcl/point_types.h>							
+#include <pcl/common/time.h>	// for pcl::StopWatch
 
 #include "GP/GP.hpp"
 #include "util/meshGrid.hpp"
@@ -18,6 +19,11 @@ template <class MeanFunc, class CovFunc, class LikFunc,
 class GaussianProcessOccupancyMap : public OctreeGPOM
 {
 public:
+	typedef typename MeanFunc::Hyp	MeanHyp;
+	typedef typename CovFunc::Hyp	CovHyp;
+	typedef typename LikFunc::Hyp	LikHyp;
+
+public:
 	// constructor
 	GaussianProcessOccupancyMap(const Scalar mapResolution)
 		: OctreeGPOM(mapResolution)
@@ -26,6 +32,246 @@ public:
 
 	// destructor
 	virtual ~GaussianProcessOccupancyMap() { }
+
+	void build(pcl::PointCloud<pcl::PointNormal>::Ptr		pointNormals, 
+			   MeanHyp										&meanLogHyp,
+			   CovHyp										&covLogHyp,
+			   LikHyp										&likLogHyp,
+			   const int									numMaxIterationsForTraining,
+			   const Eigen::Vector3f						&min,
+			   const Eigen::Vector3f						&max,
+			   const Scalar									pruneVarianceThreshold, 
+			   const Scalar									pruneOccupancyThreshold)
+	{
+		// stop watch
+		pcl::StopWatch watch;
+
+		// extract NaN from normals
+		pcl::PointCloud<pcl::PointXYZ>::Ptr points = extractNaNFromPointCloud<pcl::PointXYZ, pcl::PointNormal>(*pointNormals, *pointNormals);
+
+		// training inputs
+		MatrixPtr pX = copyPoints<pcl::PointXYZ>(points);
+		MatrixPtr pXd = copyPoints<pcl::PointNormal>(pointNormals);
+		std::cout << "number of training points: " << pX->cols() << std::endl;
+		std::cout << "number of training derivaties: " << pXd->cols() << std::endl;
+
+		// training outputs
+		VectorPtr pY = generateTrainingOutputs<pcl::PointXYZ, pcl::PointNormal>(points, pointNormals);
+
+		// set training data
+		std::cout << "precalculation ... " << std::endl;
+		watch.reset();
+		m_gp.setTrainingData(pXd, pX, pY);
+		std::cout << "done in " << watch.getTimeSeconds() << " seconds." << std::endl;
+
+		// train
+		if(numMaxIterationsForTraining > 0)
+		{
+			std::cout << "training ... " << std::endl;
+			watch.reset();
+			m_gp.train<BFGS, DeltaFunc>(meanLogHyp, covLogHyp, likLogHyp, numMaxIterationsForTraining);
+			std::cout << "done in " << watch.getTimeSeconds() << " seconds." << std::endl;
+			std::cout << "Mean: " << std::endl << meanLogHyp.array().exp() << std::endl;
+			std::cout << "Cov: " << std::endl << covLogHyp.array().exp() << std::endl;
+			std::cout << "Lik: " << std::endl << likLogHyp.array().exp() << std::endl;
+		}
+
+		// test points
+		MatrixPtr pXs = meshGrid(min, max, resolution_);
+		std::cout << "number of test points: " << pXs->cols() << std::endl; // 8000
+
+		// predict
+		VectorPtr	pMu;
+		MatrixPtr	pSigma;
+		std::cout << "prediction ... " << std::endl;
+		watch.reset();
+		m_gp.predict(meanLogHyp, covLogHyp, likLogHyp, pXs, 
+					 pMu, pSigma);
+		std::cout << "done in " << watch.getTimeSeconds() << " seconds." << std::endl;
+
+		if(pMu->hasNaN())		std::cout << "Error: Mu has NaN!" << std::endl;
+		if(pSigma->hasNaN()) std::cout << "Error: Sigma has NaN!" << std::endl;
+
+		// merge
+		for(unsigned int i = 0; i < pXs->cols(); i++)
+		{
+			mergeMeanAndVarianceAtPoint((*pXs)(0, i), (*pXs)(1, i), (*pXs)(2, i),
+										(*pMu)(i, 0), (*pSigma)(i, 0));
+		}
+
+		// prune
+		unsigned int numPrunedLeafNodes = pruneCertainUnoccupiedNodes(pruneVarianceThreshold, pruneOccupancyThreshold);
+		std::cout << "after prune: " << getLeafCount() << " leaf nodes. ( " << numPrunedLeafNodes << " were pruned. )" << std::endl;
+
+	}
+
+	void build(pcl::PointCloud<pcl::PointNormal>::ConstPtr	pointNormals, 
+			   pcl::PointCloud<pcl::PointXYZ>::ConstPtr		pRobotPositions, 
+			   const float									blockSize,
+			   const Scalar									pruneVarianceThreshold, 
+			   const Scalar									pruneOccupancyThreshold)
+	{
+		// training inputs
+		MatrixPtr pX = copyPoints<pcl::PointXYZ>(pRobotPositions);
+
+		// octree
+		pcl::octree::OctreePointCloudPointVector<pcl::PointNormal> octree(blockSize);
+		//pcl::octree::OctreePointCloudSearch<pcl::PointNormal> octree(octreeResolution);
+
+		// min, max
+		Eigen::Vector4f min, max;
+		pcl::getMinMax3D<pcl::PointNormal>(*pointNormals, min, max);
+
+		// bounding box
+		pcl::PointXYZ octreeMin, octreeMax;
+		octreeMin.x = resolution_ * floor(min.x() / resolution_);
+		octreeMin.y = resolution_ * floor(min.y() / resolution_);
+		octreeMin.z = resolution_ * floor(min.z() / resolution_);
+		octreeMax.x = resolution_ * ceil(max.x() / resolution_);
+		octreeMax.y = resolution_ * ceil(max.y() / resolution_);
+		octreeMax.z = resolution_ * ceil(max.z() / resolution_);
+		octree.defineBoundingBox(octreeMin.x, octreeMin.y, octreeMin.z, octreeMax.x, octreeMax.y, octreeMax.z);
+
+		// set point clouds
+		octree.setInputCloud(pointNormals);
+		octree.addPointsFromInputCloud();
+		std::cout << "total number of leaf nodes: " << octree.getLeafCount() << std::endl;
+
+		// for each leaf node
+		pcl::octree::OctreePointCloudPointVector<pcl::PointNormal>::LeafNodeIterator iter(octree);
+		//pcl::octree::OctreePointCloudSearch<pcl::PointNormal>::LeafNodeIterator iter(octree);
+
+		unsigned int totalNumPoints = 0;
+		unsigned int numLeafNodes = 0;
+		unsigned int maxNumPoints = 0;
+		unsigned int minNumPoints = 1000000;
+		const int MIN_HIT_POINTS_TO_CONSIDER = 10;
+		//std::ofstream fout("numPoints.txt");
+		while (*++iter)
+		{
+			//std::cout << "# leaf node: " << numLeafNodes << std::endl;
+			numLeafNodes += 1;
+
+			// points in the leaf node
+			std::vector<int> indexVector;
+			iter.getData(indexVector);
+			const int n = indexVector.size();
+			if(n <= MIN_HIT_POINTS_TO_CONSIDER) continue;
+			if(n > maxNumPoints)		maxNumPoints = n;
+			if(n < minNumPoints)		minNumPoints = n;
+			totalNumPoints += n;
+			std::cout << "[ " << numLeafNodes << " ]: " << n << std::endl;
+			//fout << numLeafNodes << "\t" << n << std::endl;
+
+			// training inputs
+			MatrixPtr pXd = copyPoints<pcl::PointNormal>(pointNormals, indexVector);
+			//std::cout << "Xd = " << std::endl << *pXd << std::endl << std::endl;
+
+			// training outputs
+			VectorPtr pY = generateTrainingOutputs<pcl::PointXYZ, pcl::PointNormal>(pointNormals, pRobotPositions, indexVector);
+			//std::cout << "Y = " << std::endl << *pY << std::endl << std::endl;
+
+			// set training data
+			m_gp.setTrainingData(pXd, pX, pY);
+
+			// hyperparameters
+			MeanFunc::Hyp		meanLogHyp;
+			CovFunc::Hyp		covLogHyp;
+			LikFunc::Hyp		likLogHyp;
+
+			// default values
+			covLogHyp << log(5.158820125747006f), log(1.863198796627710f);
+			likLogHyp << log(0.144316317935091f), log(0.000000023020410f);
+			//covLogHyp << log(42.7804f), log(0.0228842f);
+			//likLogHyp << log(0.0133948f), log(0.403304f);
+
+			// train
+			//std::cout << "training ... " << std::endl;
+			//m_gp.train<BFGS, DeltaFunc>(meanLogHyp, covLogHyp, likLogHyp, 10);
+			//std::cout << "done in seconds" << std::endl;
+			//std::cout << "Mean: " << std::endl << meanLogHyp.array().exp() << std::endl;
+			//std::cout << "Cov: " << std::endl << covLogHyp.array().exp() << std::endl;
+			//std::cout << "Lik: " << std::endl << likLogHyp.array().exp() << std::endl;
+
+			// test points
+			Eigen::Vector3f nodeMin, nodeMax;
+			octree.getVoxelBounds(iter, nodeMin, nodeMax);
+			//std::cout << "nodeMin = " << std::endl << nodeMin << std::endl << std::endl;
+			//std::cout << "nodeMax = " << std::endl << nodeMax << std::endl << std::endl;
+			//pcl::PointCloud<pcl::PointXYZ>::Ptr pTestPoints = meshGrid(min, max, mapResolution);
+			MatrixPtr pXs = meshGrid(nodeMin, nodeMax, resolution_);
+			//std::cout << "number of test points: " << pXs->cols() << std::endl; // 8000
+			//Matrix Xs		= pTestPoints->getMatrixXfMap(3, 4, 0);
+			//MatrixPtr pXs(&Xs);
+			////MatrixPtr pXs= boost::make_shared(pTestPoints->getMatrixXfMap(3, 4, 0));
+
+			// predict
+			VectorPtr	pMu;
+			MatrixPtr	pSigma;
+			m_gp.predict(meanLogHyp, covLogHyp, likLogHyp, pXs, 
+									pMu, pSigma);
+
+			if(pMu->hasNaN())		std::cout << "Error: Mu has NaN!" << std::endl;
+			if(pSigma->hasNaN()) std::cout << "Error: Sigma has NaN!" << std::endl;
+
+			// merge
+			for(unsigned int i = 0; i < pXs->cols(); i++)
+			{
+				mergeMeanAndVarianceAtPoint((*pXs)(0, i), (*pXs)(1, i), (*pXs)(2, i),
+											(*pMu)(i, 0), (*pSigma)(i, 0));
+			}
+
+			// show
+			//OctreeGPOMViewer viewer(pHitPoints, *this);
+		}
+		std::cout << "total: " << numLeafNodes << " leaf nodes." << std::endl;
+		std::cout << "total: " << totalNumPoints << " points." << std::endl;
+		std::cout << "max: " << maxNumPoints << std::endl;
+		std::cout << "min: " << minNumPoints << std::endl;
+		std::cout << "avg: " << (float) totalNumPoints / (float) numLeafNodes << std::endl;
+
+		// prune
+		std::cout << "before prune: " << getLeafCount() << " leaf nodes." << std::endl;
+		unsigned int numPrunedLeafNodes = pruneCertainUnoccupiedNodes(pruneVarianceThreshold, pruneOccupancyThreshold);
+		std::cout << "after prune: " << getLeafCount() << " leaf nodes. ( " << numPrunedLeafNodes << " were pruned. )" << std::endl;
+
+		// show
+		OctreeGPOMViewer<pcl::PointNormal> viewer(pointNormals, *this);
+	
+
+		//// set training data
+		//m_gp.setTrainingData(pXd, pX, pY);
+
+		//// hyperparameters
+		//MeanFunc::Hyp		meanLogHyp;
+		//CovFunc::Hyp		covLogHyp;
+		//LikFunc::Hyp			likLogHyp;
+
+		//// default values
+		//covLogHyp << log(1.f), log(1.f);
+		//likLogHyp << log(1.f), log(1.f);
+
+		//// train
+		//std::cout << "training ... " << std::endl;
+		//m_gp.train<BFGS, DeltaFunc>(meanLogHyp, covLogHyp, likLogHyp, 10);
+		//std::cout << "done in seconds" << std::endl;
+
+		//std::cout << "Mean: " << std::endl << meanLogHyp << std::endl;
+		//std::cout << "Cov: " << std::endl << covLogHyp << std::endl;
+		//std::cout << "Lik: " << std::endl << likLogHyp << std::endl;
+
+		//// test points
+		//pcl::PointCloud<pcl::PointXYZ>::Ptr pTestPoints = meshGrid(min, max, mapResolution);
+		//Matrix Xs		= pTestPoints->getMatrixXfMap(3, 4, 0);
+		//MatrixPtr pXs(&Xs);
+		////MatrixPtr pXs= boost::make_shared(pTestPoints->getMatrixXfMap(3, 4, 0));
+
+		//// predict
+		//VectorPtr	pMu;
+		//MatrixPtr		pSigma;
+		//m_gp.predict(meanLogHyp, covLogHyp, likLogHyp, pXs, 
+		//						pMu, pSigma);
+	}
 
 	void build(pcl::PointCloud<pcl::PointXYZ>::ConstPtr			pHitPoints, 
 				  pcl::PointCloud<pcl::Normal>::ConstPtr				pNormals,

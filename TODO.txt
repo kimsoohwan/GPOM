@@ -1,0 +1,17 @@
+Point Normals
+1. outlier filter -> fail with trees
+2. surface normal 
+3. normal refinement -> fail with K
+4. voxel grid filter
+
+Note
+1. use sensor_origin_?
+2. use NormalEstimationOMP?
+
+TODO
+1. MatrixPtr -> Matrix
+2. K-> upper triangle
+3. Predict = CG <- unstable version
+4. CovSparseFDI -> m_n > 0
+5. (Scalar) 1.f -> static_cast<Scalar>(1.f)
+6. HypPtr -> Hyp

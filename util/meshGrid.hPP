@@ -6,25 +6,26 @@
 
 namespace GPOM{
 
-	pcl::PointCloud<pcl::PointXYZ>::Ptr meshGrid(const pcl::PointXYZ		&min,
-																const pcl::PointXYZ		&max,
-																const Scalar				gridSize)
-	{
-		// point cloud
-		pcl::PointCloud<pcl::PointXYZ>::Ptr pPoints(new pcl::PointCloud<pcl::PointXYZ>());
+	//template <typename PoinT>
+	//typename pcl::PointCloud<PoinT>::Ptr meshGrid(const PoinT		&min,
+	//											  const PoinT		&max,
+	//											  const Scalar		gridSize)
+	//{
+	//	// point cloud
+	//	pcl::PointCloud<pcl::PointXYZ>::Ptr pPoints(new pcl::PointCloud<pcl::PointXYZ>());
 
-		// generate mesh grid in the order of x, y, z
-		for(Scalar x = min.x + gridSize/(static_cast<Scalar>(2.f)); x < max.x; x += gridSize)
-			for(Scalar y = min.y + gridSize/(static_cast<Scalar>(2.f)); y < max.y; y += gridSize)
-				for(Scalar z = min.z + gridSize/(static_cast<Scalar>(2.f)); z < max.z; z += gridSize)
-					pPoints->push_back(pcl::PointXYZ(x, y, z));
+	//	// generate mesh grid in the order of x, y, z
+	//	for(Scalar x = min.x + gridSize/(static_cast<Scalar>(2.f)); x < max.x; x += gridSize)
+	//		for(Scalar y = min.y + gridSize/(static_cast<Scalar>(2.f)); y < max.y; y += gridSize)
+	//			for(Scalar z = min.z + gridSize/(static_cast<Scalar>(2.f)); z < max.z; z += gridSize)
+	//				pPoints->push_back(pcl::PointXYZ(x, y, z));
 
-		return pPoints;
-	}
+	//	return pPoints;
+	//}
 
-	MatrixPtr meshGrid(Eigen::Vector3f				&min,
-							 Eigen::Vector3f				&max,
-							 const Scalar					gridSize)
+	MatrixPtr meshGrid(const Eigen::Vector3f	&min,
+					   const Eigen::Vector3f	&max,
+					   const Scalar				gridSize)
 	{
 		// exclude the max points
 		const int nx = floor((max.x() - min.x()) / gridSize);
@@ -55,7 +56,8 @@ namespace GPOM{
 		return pXs;
 	}
 
-	MatrixPtr copyPoints(pcl::PointCloud<pcl::PointXYZ>::ConstPtr pPoints, std::vector<int> &indexVector)
+	template <typename PointT>
+	MatrixPtr copyPoints(typename pcl::PointCloud<PointT>::ConstPtr pPoints, std::vector<int> &indexVector)
 	{
 		const int n = indexVector.size();
 		MatrixPtr pX(new Matrix(3, n));
@@ -68,7 +70,8 @@ namespace GPOM{
 		return pX;
 	}
 
-	MatrixPtr copyPoints(pcl::PointCloud<pcl::PointXYZ>::ConstPtr pPoints)
+	template <typename PointT>
+	MatrixPtr copyPoints(typename pcl::PointCloud<PointT>::ConstPtr pPoints)
 	{
 		const int n = pPoints->size();
 		MatrixPtr pX(new Matrix(3, n));

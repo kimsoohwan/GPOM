@@ -20,6 +20,9 @@ namespace GPOM{
 		// Set the input points
 		ne.setInputCloud(pPoints);
 
+		// Set the view point
+		ne.setViewPoint(sensorPosition.x, sensorPosition.y, sensorPosition.z);
+
 		// Create an empty kdtree representation, and pass it to the normal estimation object.
 		// Its content will be filled inside the object, based on the given input dataset (as no other search surface is given).
 		// Use a FLANN-based KdTree to perform neighborhood searches
@@ -31,69 +34,75 @@ namespace GPOM{
 		ne.setRadiusSearch(searchRadius);
 		//normalEstimation.setKSearch (10);
 
-		// Set the search surface (i.e., the points that will be used when search for the input points’ neighbors)
+		// Set the search surface (i.e., the points that will be used when search for the input points?neighbors)
 		ne.setSearchSurface(pPoints);
 
 		// Compute the surface normals
 		pcl::PointCloud<pcl::Normal>::Ptr pNormals(new pcl::PointCloud<pcl::Normal>);
 		ne.compute(*pNormals);
 
-		// check if n is consistently oriented towards the viewpoint and flip otherwise
-		// angle between Psensor - Phit and Normal should be less than 90 degrees
-		// dot(Psensor - Phit, Normal) > 0
-		pcl::PointCloud<pcl::PointXYZ>::const_iterator		iterPoint		= pPoints->begin();
-		pcl::PointCloud<pcl::Normal>::iterator					iterNormal	= pNormals->begin();
-		for(; (iterPoint != pPoints->end()) && (iterNormal != pNormals->end()); iterPoint++, iterNormal++)
-		{
-			if((sensorPosition.x - iterPoint->x) * iterNormal->normal_x + 
-			   (sensorPosition.y - iterPoint->y) * iterNormal->normal_y + 
-			   (sensorPosition.z - iterPoint->z) * iterNormal->normal_z < 0)
-			{
-				iterNormal->normal_x *= -1.f;
-				iterNormal->normal_y *= -1.f;
-				iterNormal->normal_z *= -1.f;
-			}
-		}
+		//// check if n is consistently oriented towards the viewpoint and flip otherwise
+		//// angle between Psensor - Phit and Normal should be less than 90 degrees
+		//// dot(Psensor - Phit, Normal) > 0
+		//pcl::PointCloud<pcl::PointXYZ>::const_iterator		iterPoint	= pPoints->begin();
+		//pcl::PointCloud<pcl::Normal>::iterator				iterNormal	= pNormals->begin();
+		//for(; (iterPoint != pPoints->end()) && (iterNormal != pNormals->end()); iterPoint++, iterNormal++)
+		//{
+		//	if((sensorPosition.x - iterPoint->x) * iterNormal->normal_x + 
+		//	   (sensorPosition.y - iterPoint->y) * iterNormal->normal_y + 
+		//	   (sensorPosition.z - iterPoint->z) * iterNormal->normal_z < 0)
+		//	{
+		//		iterNormal->normal_x *= -1.f;
+		//		iterNormal->normal_y *= -1.f;
+		//		iterNormal->normal_z *= -1.f;
+		//	}
+		//}
 
 		return pNormals;
 	}
 
-//	// PointNormal: float x, y, znormal[3], curvature
-//	void smoothAndNormalEstimation(pcl::PointCloud<pcl::PointXYZ>::Ptr pPoints, 
-//																 pcl::PointCloud<pcl::PointNormal>::Ptr &pPointNormals)
-//	{
-//		// Smoothing and normal estimation based on polynomial reconstruction
-//		// Moving Least Squares (MLS) surface reconstruction method can be used to smooth and resample noisy data
-//
-//		// Create a KD-Tree
-//		pcl::search::KdTree<pcl::PointXYZ>::Ptr kdtree(new pcl::search::KdTree<pcl::PointXYZ>);
-//
-//		// Init object (second point type is for the normals, even if unused)
-//		pcl::MovingLeastSquares<pcl::PointXYZ, pcl::PointNormal> mls;
-//
-//		// Set parameters
-//		mls.setInputCloud(pPoints);
-//		mls.setPolynomialFit(true);
-//		mls.setSearchMethod(kdtree);
-//		mls.setSearchRadius(0.03); // 0.8
-//
-//		// Reconstruct
-//		// PCL v1.6
-//#if 0
-//		mls.setComputeNormals (true);
-//
-//		// Output has the PointNormal type in order to store the normals calculated by MLS
-//		pcl::PointCloud<pcl::PointNormal> mls_points;
-//		mls.process (mls_points);
-//		return mls_points;
-//#else
-//		mls.reconstruct(*pPoints);
-//
-//		// Output has the PointNormal type in order to store the normals calculated by MLS
-//		pPointNormals = mls.getOutputNormals();
-//		//mls.setOutputNormals(mls_points);
-//#endif
-//	}
+	// PointNormal: float x, y, znormal[3], curvature
+	pcl::PointCloud<pcl::PointNormal>::Ptr smoothAndNormalEstimation(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
+																	 const double radius)
+	{
+		// Smoothing and normal estimation based on polynomial reconstruction
+		// Moving Least Squares (MLS) surface reconstruction method can be used to smooth and resample noisy data
+
+		// Create a KD-Tree
+		pcl::search::KdTree<pcl::PointXYZ>::Ptr kdtree(new pcl::search::KdTree<pcl::PointXYZ>);
+
+		// Init object (second point type is for the normals, even if unused)
+		pcl::MovingLeastSquares<pcl::PointXYZ, pcl::PointNormal> mls;
+
+		// Set parameters
+		mls.setInputCloud(cloud);
+		mls.setPolynomialFit(true);
+		mls.setSearchMethod(kdtree);
+		mls.setSearchRadius(radius);
+		// void 	setPointDensity (int desired_num_points_in_radius);
+		// void 	setDilationVoxelSize (float voxel_size)
+		// void 	setDilationIterations (int iterations);
+		// void 	setSqrGaussParam (double sqr_gauss_param)
+		// void 	setPolynomialOrder (int order)
+		// void 	setPolynomialFit (bool polynomial_fit)
+
+		// Reconstruct
+		// PCL v1.6
+#if 1
+		mls.setComputeNormals(true);
+
+		// Output has the PointNormal type in order to store the normals calculated by MLS
+		pcl::PointCloud<pcl::PointNormal>::Ptr mls_points(new pcl::PointCloud<pcl::PointNormal>());
+		mls.process (*mls_points);
+		return mls_points;
+#else
+		mls.reconstruct(*pPoints);
+
+		// Output has the PointNormal type in order to store the normals calculated by MLS
+		pPointNormals = mls.getOutputNormals();
+		//mls.setOutputNormals(mls_points);
+#endif
+	}
 }
 
 #endif 
